@@ -7,32 +7,32 @@ from tuya_connector import (
     TUYA_LOGGER,
 )
 
-ACCESS_ID = "your-access-id"
-ACCESS_KEY = "your-access-key"
-API_ENDPOINT = "https://openapi.tuyacn.com"
-MQ_ENDPOINT = "wss://mqe.tuyacn.com:8285/"
 
-# Enable debug log
-TUYA_LOGGER.setLevel(logging.DEBUG)
 
-# Init openapi and connect
-openapi = TuyaOpenAPI(API_ENDPOINT, ACCESS_ID, ACCESS_KEY)
-openapi.connect()
+def connect_to_tuya(access_endpoint:str, access_id:str, access_key:str):
+    openapi = TuyaOpenAPI(access_endpoint, access_id, access_key)
+    openapi.connect()
+    return openapi
 
-# Call any API from Tuya
-response = openapi.get("/v1.0/statistics-datas-survey", dict())
+def obtain_deviceinfo(openapi:TuyaOpenAPI, device_id:str):
+    response = openapi.get("/v1.0/iot-03/devices/{}/status".format(device_id))
+    return response
 
-# Init Message Queue
-open_pulsar = TuyaOpenPulsar(
-    ACCESS_ID, ACCESS_KEY, MQ_ENDPOINT, TuyaCloudPulsarTopic.PROD
-)
-# Add Message Queue listener
-open_pulsar.add_message_listener(lambda msg: print(f"---\nexample receive: {msg}"))
+def obtain_instruction(openapi:TuyaOpenAPI, device_id:str):
+    response = openapi.get("/v1.0/iot-03/devices/{}/functions".format(device_id))
+    return response
 
-# Start Message Queue
-open_pulsar.start()
+def power_device(openapi:TuyaOpenAPI, device_id:str, state:bool):
+    commands = {'commands': [{'code': 'switch_led', 'value': state}]}
+    response = openapi.post('/v1.0/iot-03/devices/{}/commands'.format(device_id), commands)
+    return response
 
-input()
-# Stop Message Queue
-open_pulsar.stop()
+def setBrightness_device(openapi:TuyaOpenAPI, device_id:str, brightness:int):
+    commands = {'commands': [{'code': 'bright_value_v2', 'value': brightness}]}
+    response = openapi.post('/v1.0/iot-03/devices/{}/commands'.format(device_id), commands)
+    return response
 
+
+
+# Get the status of a single device
+#response = openapi.get("/v1.0/iot-03/devices/{}/status".format(DEVICE_ID))
