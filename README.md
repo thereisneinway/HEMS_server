@@ -46,7 +46,7 @@ device status change (pulling every 2s)
     
     devices -> Tuya API -> json msg -> variables dict -> file
                                                       -> database 
-								                      -> app API -> mobile app
+						      -> app API -> mobile app
 
 command from mobile (on demand)
     
