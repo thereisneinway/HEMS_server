@@ -2,9 +2,9 @@ Verison 1
 
 Class level:
 -->  device_control_and_mq           : Command and interpret Tuya API replies  
-	-->  tuya_instructions             : Handle different type of device obtaining status , Interpret command 
-	-->  database_instructions    : Handle request to database
--->  mainfunctions.py  : Runtime 
+	-->  tuya_instructions       : Handle different type of device obtaining status , Interpret command 
+	-->  database_instructions   : Handle request to database
+		-->  mainfunctions.py  : Runtime 
 
 Function:
 device_control_and_mq.py
