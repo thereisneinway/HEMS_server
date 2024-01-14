@@ -5,15 +5,7 @@ import threading
 power = True
 brightness = 3
 operation = "white"
-def update_value(new_value):
-    # Update the value here with the received new_value
-    global power, brightness, operation
-    print(new_value)
-    data = json.loads(new_value)
-    if "power" in data: power = data["power"]
-    if "brightness" in data: brightness = data["brightness"]
-    if "operation" in data: operation = data["operation"]
-
+#NOT USE ANYMORE
 def handle_client(client_socket):
     while True:
         try:
@@ -47,11 +39,19 @@ port = 12345        # Replace with your desired port
 
 # Bind to the port
 server_socket.bind((host, port))
-
+print(host)
 # Listen for incoming connections
 server_socket.listen(5)
 print('Waiting for connections...')
 
+def update_value(new_value):
+    # Update the value here with the received new_value
+    global power, brightness, operation
+    print(new_value)
+    data = json.loads(new_value)
+    if "power" in data: power = data["power"]
+    if "brightness" in data: brightness = data["brightness"]
+    if "operation" in data: operation = data["operation"]
 def update_data():
     global brightness
     while True:

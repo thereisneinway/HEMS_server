@@ -1,4 +1,5 @@
 """This module has components that are used for testing tuya's device control and Pulsar massage queue."""
+import json
 import logging
 from tuya_connector import (
     TuyaOpenAPI,
@@ -7,7 +8,7 @@ from tuya_connector import (
     TUYA_LOGGER,
 )
 
-
+#Note that these functions are lower level intended to not be fool proof
 
 def connect_to_tuya(access_endpoint:str, access_id:str, access_key:str):
     openapi = TuyaOpenAPI(access_endpoint, access_id, access_key)
@@ -22,13 +23,9 @@ def obtain_instruction(openapi:TuyaOpenAPI, device_id:str):
     response = openapi.get("/v1.0/iot-03/devices/{}/functions".format(device_id))
     return response
 
-def power_device(openapi:TuyaOpenAPI, device_id:str, state:bool):
-    commands = {'commands': [{'code': 'switch_led', 'value': state}]}
-    response = openapi.post('/v1.0/iot-03/devices/{}/commands'.format(device_id), commands)
-    return response
+def send_command(openapi:TuyaOpenAPI, device_id:str, args:[]):
 
-def setBrightness_device(openapi:TuyaOpenAPI, device_id:str, brightness:int):
-    commands = {'commands': [{'code': 'bright_value_v2', 'value': brightness}]}
+    commands = {'commands': args}
     response = openapi.post('/v1.0/iot-03/devices/{}/commands'.format(device_id), commands)
     return response
 
