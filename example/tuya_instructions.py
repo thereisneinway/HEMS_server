@@ -2,18 +2,29 @@ import device_control_and_mq as dc
 
 
 #Obtain device info instructions
-def obtain_light_info(access_endpoint:str, access_id:str, access_key:str, device_id:str):
+def obtain_rgb_light_info(access_endpoint:str, access_id:str, access_key:str, device_id:str):
     response = list(dc.obtain_deviceinfo(dc.connect_to_tuya(access_endpoint,access_id,access_key),device_id).values())
     power_status = response[0][0]['value']
     light_mode = response[0][1]['value']
     brightness_value = response[0][2]['value']
     colour_value = response[0][3]['value']
     return power_status, light_mode, brightness_value, colour_value
-def obtain_plug_info(access_endpoint:str, access_id:str, access_key:str, device_id:str):
+def obtain_cct_light_info(access_endpoint:str, access_id:str, access_key:str, device_id:str):
+    response = list(dc.obtain_deviceinfo(dc.connect_to_tuya(access_endpoint,access_id,access_key),device_id).values())
+    power_status = response[0][0]['value']
+    light_mode = response[0][1]['value']
+    brightness_value = response[0][2]['value']
+    light_temp_value = response[0][3]['value']
+    return power_status, light_mode, brightness_value, light_temp_value
+def obtain_energy_plug_info(access_endpoint:str, access_id:str, access_key:str, device_id:str):
     response = list(dc.obtain_deviceinfo(dc.connect_to_tuya(access_endpoint,access_id,access_key),device_id).values())
     power_status = response[0][0]['value']
     power_usage = response[0][1]['value']
     return power_status, power_usage
+def obtain_plug_info(access_endpoint:str, access_id:str, access_key:str, device_id:str):
+    response = list(dc.obtain_deviceinfo(dc.connect_to_tuya(access_endpoint,access_id,access_key),device_id).values())
+    power_status = response[0][0]['value']
+    return power_status
 def obtain_temp_info(access_endpoint:str, access_id:str, access_key:str, device_id:str):
     response = list(dc.obtain_deviceinfo(dc.connect_to_tuya(access_endpoint, access_id, access_key), device_id).values())
     temp = response[0][1]['value']
@@ -52,5 +63,4 @@ def command(access_endpoint:str, access_id:str, access_key:str, args:dict):
     except: print("Error in args conversion")
     else:
         response = list(dc.send_command(dc.connect_to_tuya(access_endpoint, access_id, access_key), device_id, result).values())
-        print(response)
 
