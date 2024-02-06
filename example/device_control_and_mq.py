@@ -24,12 +24,9 @@ def obtain_instruction(openapi:TuyaOpenAPI, device_id:str):
     return response
 
 def send_command(openapi:TuyaOpenAPI, device_id:str, args:[]):
-
     commands = {'commands': args}
     response = openapi.post('/v1.0/iot-03/devices/{}/commands'.format(device_id), commands)
     return response
-
-
 
 # Get the status of a single device
 #response = openapi.get("/v1.0/iot-03/devices/{}/status".format(DEVICE_ID))
