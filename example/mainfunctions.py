@@ -6,10 +6,9 @@ import json
 import threading
 
 # Tuya API Information
-ACCESS_ID = ""
-ACCESS_KEY = ""
+ACCESS_ID = "11860382c9802039h3ta"
+ACCESS_KEY = "adc69aab797049bd9426c623e9cad681"
 API_ENDPOINT = "https://openapi.tuyaus.com"
-# MQ_ENDPOINT = "wss://mqe.tuyaus.com:8285/"
 
 # Database Information
 MySQL_HOST = 'localhost'
@@ -20,7 +19,7 @@ MySQL_PASSWORD = 'root'
 host = socket.gethostname()
 port = 12345
 
-# Device id (Prototype)
+# Device id
 DEVICES = []
 
 
@@ -45,8 +44,6 @@ def diff_devices(res1: dict):
             break
     dict1 = res1["STATUS"]
     dict2 = res2["STATUS"]
-    #print(dict1)
-    #print(dict2)
 
     for key in dict1.keys():
         if key in dict2.keys():
@@ -113,8 +110,6 @@ def update_device_to_mobile(client_socket):  # Updating new value to mobile (whe
             print("update_device_to_mobile error ", e)
             break
     while client_socket:
-        #Device stat section
-        #print("Begin updating===============================")
         for i in DEVICES:
             # request devices status from Tuya to dict
             fetch_devices_stat(i)
@@ -126,8 +121,6 @@ def update_device_to_mobile(client_socket):  # Updating new value to mobile (whe
                 data = i.get("STATUS")
                 data["Device_name"] = i["Device_name"]
                 json_data = json.dumps(data)
-                #print("Replying mobile===============================")
-                #print(json_data)
                 try:
                     client_socket.send((json_data + "\n").encode())
                     print("update_device_to_mobile send")
