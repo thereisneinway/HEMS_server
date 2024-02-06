@@ -6,8 +6,8 @@ import json
 import threading
 
 # Tuya API Information
-ACCESS_ID = "11860382c9802039h3ta"
-ACCESS_KEY = "adc69aab797049bd9426c623e9cad681"
+ACCESS_ID = ""
+ACCESS_KEY = ""
 API_ENDPOINT = "https://openapi.tuyaus.com"
 
 # Database Information
