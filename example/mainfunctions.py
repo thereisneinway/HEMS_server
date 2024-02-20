@@ -62,35 +62,6 @@ def command_to_api(device_name: str,new_settings: dict):  # identify device and 
     ti.command(API_ENDPOINT, ACCESS_ID, ACCESS_KEY, device)
 
 
-def fetch_devices_stat_old(
-        device: dict):  # requesting device status from tuya (run by update_device_status_toMobile) TO BE REMOVE
-    device_type = device.get("Device_type")
-    device_id = device.get("Device_id")
-    if device_type == "RGB_Light":
-        power_status, light_mode, brightness_value, colour_value = ti.obtain_rgb_light_info(API_ENDPOINT, ACCESS_ID,ACCESS_KEY, device_id)
-        new_status = {
-            "Power": power_status,
-            "Mode": light_mode,
-            "Brightness": brightness_value,
-            "Colour": colour_value
-        }
-        device.__setitem__("STATUS", new_status)
-    elif device_type == "CCT_Light":
-        power_status, light_mode, brightness_value, light_temp_value = ti.obtain_cct_light_info(API_ENDPOINT, ACCESS_ID,ACCESS_KEY, device_id)
-        new_status = {
-            "Power": power_status,
-            "Mode": light_mode,
-            "Brightness": brightness_value,
-            "Light_temp": light_temp_value
-        }
-        device.__setitem__("STATUS", new_status)
-    elif device_type == "plug":
-        power_status = ti.obtain_plug_info(API_ENDPOINT, ACCESS_ID, ACCESS_KEY, device_id)
-        new_status = {
-            "Power": power_status
-        }
-        device.__setitem__("STATUS", new_status)
-    return device
 
 def fetch_devices_stat(device: dict):
     ti.request(API_ENDPOINT,ACCESS_ID,ACCESS_KEY,device)
@@ -105,11 +76,14 @@ def update_device_to_mobile(client_socket):  # Updating new value to mobile (whe
         json_data = json.dumps(data)
         try:
             client_socket.send((json_data + "\n").encode())
-            print("update_device_to_mobile send")
+            print("SEND: update_device_to_mobile " + data["Device_name"])
         except Exception as e:
-            print("update_device_to_mobile error ", e)
+            print("SEND: error ", e)
             break
     while client_socket:
+        if "close" in str(client_socket):
+            print("SEND: thread closing")
+            break
         for i in DEVICES:
             # request devices status from Tuya to dict
             fetch_devices_stat(i)
@@ -119,24 +93,19 @@ def update_device_to_mobile(client_socket):  # Updating new value to mobile (whe
                 save_devices()
                 # update new status to phone
                 data = i.get("STATUS")
+                print("SEND: data:" + str(data))
                 data["Device_name"] = i["Device_name"]
                 json_data = json.dumps(data)
                 try:
                     client_socket.send((json_data + "\n").encode())
-                    print("update_device_to_mobile send")
+                    print("SEND: update_device_to_mobile " + data["Device_name"])
                 except Exception as e:
-                    print("update_device_to_mobile error ", e)
+                    print("SEND: error ", e)
                     break
             else:
-                try:
-                    client_socket.send(("no update" + "\n").encode())
-                    print("update_device_to_mobile send")
-                except Exception as e:
-                    print("update_device_to_mobile error ", e)
-                    break
+                print("SEND: no send")
         else: continue
         break
-        #Schedule section
 
 
 def handle_mobile_client(client_socket):  # Handling request from mobile (on demand)
@@ -144,15 +113,12 @@ def handle_mobile_client(client_socket):  # Handling request from mobile (on dem
         try:
             # Receive data from the client and interpret type
             request = client_socket.recv(1024).decode()
-            
-            print(request)
             json_data = json.loads(request)
             msg_type = json_data["type"]
             # Handle command
             if msg_type == "command":
-                print("Command valid================================")
                 device_name = json_data["Device_name"]
-                print(json_data)
+                print("RECE: " + str(json_data))
                 del json_data["Device_name"]
                 arg = json_data["arg"]
                 command_to_api(device_name, arg)
@@ -163,7 +129,7 @@ def handle_mobile_client(client_socket):  # Handling request from mobile (on dem
             elif msg_type == "set_schedule":
                 print("Set schedule not implemented yet")
         except Exception as e:
-            print("Handle_mobile_client error ", e)
+            print("RECE: error ", e)
             client_socket.close()
             break
 
@@ -186,23 +152,52 @@ def connect_to_mobile():  # Initialize function
         value_thread.join()
 
 
-print("Initialized")
-# schedule.every(3).seconds.do(api_to_database)
-# while True:
-#    schedule.run_pending()
-#    time.sleep(1)
-'''set = {
-        "Power": True,
-        "Brightness": 100,
-        "Colour": "{\"h\":180,\"s\":1000,\"v\":1000}",
-        "Mode": "white"
-    }
-command_to_api(DEVICES[0],set)'''
 load_devices()
 mobile_thread = threading.Thread(target=connect_to_mobile)
 mobile_thread.start()
 mobile_thread.join()
 
-# DEVICES[0] = fetch_devices_stat(DEVICES[0])
-# print(str(DEVICES[0].get("STATUS")))
-# di.append_to_database_table(MySQL_HOST,MySQL_USERNAME,MySQL_PASSWORD,DEVICES[0],time.strftime('%Y-%m-%d %H:%M:%S'))
+
+'''old version of update_device functions
+
+def update_device_to_mobile(client_socket):  # Updating new value to mobile (when changes occur)
+    #Update client first time
+    for i in DEVICES:
+        data = i.get("STATUS")
+        data["Device_name"] = i["Device_name"]
+        json_data = json.dumps(data)
+        try:
+            client_socket.send((json_data + "\n").encode())
+            print("SEND: update_device_to_mobile " + data["Device_name"])
+        except Exception as e:
+            print("SEND: error ", e)
+            break
+    while client_socket:
+        for i in DEVICES:
+            # request devices status from Tuya to dict
+            fetch_devices_stat(i)
+            # compare variable to file
+            if diff_devices(i):
+                # update new status to file
+                save_devices()
+                # update new status to phone
+                data = i.get("STATUS")
+                data["Device_name"] = i["Device_name"]
+                json_data = json.dumps(data)
+                try:
+                    client_socket.send((json_data + "\n").encode())
+                    print("SEND: update_device_to_mobile " + data["Device_name"])
+                except Exception as e:
+                    print("SEND: error ", e)
+                    break
+            else:
+                try:
+                    client_socket.send(("no update" + "\n").encode())
+                    print("SEND: send no update")
+                except Exception as e:
+                    print("SEND: error ", e)
+                    break
+        else: continue
+        break
+        
+'''
