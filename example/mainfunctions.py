@@ -1,6 +1,4 @@
 import tuya_instructions as ti
-import schedule
-import time
 import socket
 import json
 import threading
@@ -17,22 +15,20 @@ MySQL_PASSWORD = 'root'
 
 # Socket Information
 host = socket.gethostname()
+hostip = socket.gethostbyname(host)
 port = 12345
 
 # Device id
 DEVICES = []
 
-
-# Handling devices list: Not in use yet
+# Handling devices list
 def save_devices():
     with open('devices.txt', 'w') as devices_file:
         devices_file.write(json.dumps(DEVICES))
 
-
 def load_devices():
     global DEVICES
     DEVICES = json.load(open("devices.txt"))
-
 
 def diff_devices(res1: dict):
     target = res1["Device_name"]
@@ -81,10 +77,10 @@ def update_device_to_mobile(client_socket):  # Updating new value to mobile (whe
             print("SEND: error ", e)
             break
     while client_socket:
-        if "close" in str(client_socket):
-            print("SEND: thread closing")
-            break
         for i in DEVICES:
+            if "close" in str(client_socket):
+                print("SEND: thread closing")
+                break
             # request devices status from Tuya to dict
             fetch_devices_stat(i)
             # compare variable to file
@@ -138,6 +134,7 @@ def connect_to_mobile():  # Initialize function
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((host, port))
     server_socket.listen(5)
+    print("HOST NAME: " + host + " "+hostip)
     while True:
         # Accept a new connection
         client_socket, addr = server_socket.accept()
@@ -153,6 +150,7 @@ def connect_to_mobile():  # Initialize function
 
 
 load_devices()
+print("mt: initialized")
 mobile_thread = threading.Thread(target=connect_to_mobile)
 mobile_thread.start()
 mobile_thread.join()
@@ -200,4 +198,16 @@ def update_device_to_mobile(client_socket):  # Updating new value to mobile (whe
         else: continue
         break
         
+        SSL version
+        
+def connect_to_mobile():  # Initialize function
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+    server_socket.bind((host, port))
+    server_socket.listen(5)
+    contextSSL = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
+    contextSSL.load_cert_chain('cert/selfsigned.pem','cert/private.key')
+    server_socket_ssl = contextSSL.wrap_socket(server_socket, server_side=True)
+    while True:
+        # Accept a new connection
+        client_socket, addr = server_socket_ssl.accept()
 '''

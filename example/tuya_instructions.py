@@ -1,28 +1,8 @@
 import device_control_and_mq as dc
 
-# Send device command instructions
-
-'''
-args example:
-    "CODE": {
-        "Power": "switch_led",
-        "Mode": "work_mode",
-        "Brightness": "bright_value_v2",
-        "Colour": "colour_data_v2"
-    },
-    "STATUS": {
-        "Power": True,
-        "Mode": "white",
-        "Brightness": 1000,
-        "Colour": "{\"h\":180,\"s\":1000,\"v\":1000}"
-    }
-'''
-
-
 def command(access_endpoint: str, access_id: str, access_key: str, args: dict):
     try:
         device_id = args.get("Device_id")
-        # Convert to lower level [] that accept by Tuya API
         result = []
         code_dict = args.get("CODE")
         status_dict = args.get("SET")
@@ -73,23 +53,3 @@ def list_function(access_endpoint: str, access_id: str, access_key: str, device_
             'functions']
     return response
 
-
-# local test code
-'''verify_instruction("https://openapi.tuyaus.com", "11860382c9802039h3ta", "adc69aab797049bd9426c623e9cad681",
-                   "7268165584f3ebec8a6f", {
-                       "Device_id": "7268165584f3ebec8a6f",
-                       "Device_name": "Shower",
-                       "Device_type": "RGB_Light",
-                       "CODE": {
-                           "Power": "switch_led",
-                           "Brightness": "bright_value_v2",
-                           "Colour": "colour_data_v2",
-                           "Mode": "work_mode"
-                       },
-                       "STATUS": {
-                           "Power": True,
-                           "Brightness": 1000,
-                           "Colour": "{\"h\":180,\"s\":1000,\"v\":1000}",
-                           "Mode": "white"
-                       }
-                   })'''

@@ -3,7 +3,7 @@
 
 # from distutils.core import setup
 from setuptools import setup, find_packages
-from tuya_connector import __version__
+from example.tuya_connector import __version__
 
 tests_require = []
 
