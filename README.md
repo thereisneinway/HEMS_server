@@ -1,4 +1,4 @@
-Verison 1 
+Verison 5.0
 
 ### Class level:
 
@@ -17,42 +17,70 @@ device_control_and_mq.py
 
 tuya_instruction.py
 
-	- obtain_light_info
-	- obtain_plug_info
-	- obtain_temp_info
-	- obtain_lightintensity_info
-	- command: send command to device_control_and_mq
+	- command : handling command for sending to smart device
+	- request : update a device stat to array DEVICES
+	- verify_instruction : check if instruction is valid (to be used for adding device)
+	- list_function : get list control functions from smart device (to be used of adding device)
 	
 database_instructions.py
 
-	- database_create_table : Create database if not existing for the device
-	- append_to_database_table : Saving status of device to database
+	- create_table : Create table "main" (run by append_to_database)
+	- get_prefix : Process device type and return column_name, value, data_type (run by check_column and append_to_database)
+    - check_column : Check if column exist and add if not (run by append_to_database)
+    - add_column : Add column according to column_name and data_type (run by check_column)
+    - append_to_database : Check if table and column exist and append all devices stat to a row)
 
 mainfunctions.py
 
-	- command_to_api : send command to tuya_instruction
-	- fetch_devices_stat : pulling data of single device from Tuya then save to [Devices]  and call update_device_status_toMobile if change were made (loop)
-	- set_device : receiving request from mobile then forward to command_to_api and save to [Devices]
-	- update_device_status_toMobile : push devices stat to mobile
-	- handle_mobile_client : handling request from mobile (loop)
-	- connect_to_mobile : run time
-	Thread 1 - Fetching device stat + saving to database + updating mobile
-	Thread 2 - Handling mobile request + sending command to Tuya
+	- save_devices_to_file : Save device stats from dict to file
+	- load_devices_from_file : 	Load device stats from file to dict
+    - diff_devices : Compare if devices stats in dict and file is same [True/False]
+	- save_automation_to_file : Save automations from dict to file
+	- load_automation_from_file : Load automations from file to dict
+	- command_to_api : Pass command to be sent to device to tuya instruction (call from handle_mobile_client, manage_automation)
+    - add_automation : Add automation (call from handle_mobile_client)
+	- remove_automation : Remove automation (call from handle_mobile_client)
+	- push_automation_info_to_mobile : Send automation list to mobile (call from handle_mobile_client)
+    
+    - manage_automation : Periodically check automation and run (Thread)
+	- fetch_devices_stat : Fetch device stat one by one from tuya (Thread)
+	- update_device_to_mobile : Push device stat one by one to mobile and save to file if diff(Thread-connect_to_mobile)
+    - handle_mobile_client : Handle any commands from mobile (Thread-connect_to_mobile)
+    - connect_to_mobile : Initiate socket connection from mobile (Thread)
+	- database_manage : Append device stats to database (Thread)
+    - AI : [To be implement]
+
+Thread list in mainfunctions.py
+
+	Thread 1 - Handling connection from mobile
+    Thread 2 - Updating device stats to mobile, save device stats to file if changes found
+    Thread 3 - Handling message command from mobile
+    Thread 4 - Automation checking and run
+    Thread 5 - Fetching device stats from tuya
+    Thread 6 - Append device stats to database
+    Thread main - Initialize and do no shit after that
 
 
 ### Flow of commands: 
 
-device status change (pulling every 2s)
+device status change (pulling every 2s by Thread 5)
     
-    devices -> Tuya API -> json msg -> variables dict -> file
-                                                      -> database 
-						      -> app API -> mobile app
+    devices -> Tuya API -> json msg -> variables dict 
 
-command from mobile (on demand)
+automation flow (checking every 5s by Thread 4)
+
+    file -> fn: manage_automation() -> json msg -> Tuya API -> devices
+
+command from mobile (on demand by Thread 3)
     
     mobile app -> app API -> json msg -> Tuya API -> devices
+        (or)   -> fn: push_automation_info_to_mobile() -> mobile app
 
-request stat from mobile (on demand)
+updating devices stats mobile (on demand by Thread 2)
     
-    mobile app -> app API ; 
-    reply: file -> variables dict -> app API -> mobile app
+    variables dict -> app API -> mobile app
+          (and)    -> file
+
+appending devices stats to database (pushing every 2s by Thread 6)
+
+    variables dict -> fn: append_to_database() -> MySQL server
