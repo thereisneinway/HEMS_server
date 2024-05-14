@@ -1,61 +1,94 @@
 import mysql.connector
 import time
 
-def database_create_table(MySQL_HOST:str, MySQL_USERNAME:str, MySQL_PASSWORD:str, device_type: str,device_name: str):  # This function is to create table in database representing log of one device (only run when no table found)
-    print("create database table: "+ device_name)
+#Log to database at once (table: main)
+def create_table(cursor):
+    query = "CREATE TABLE main (timestamp datetime NOT NULL, PRIMARY KEY (timestamp))"
+    cursor.execute(query)
+    cursor.fetchone()
+
+def get_prefix(device: dict):
+    device_type = device['Device_type']
+    device_name = device['Device_name']
+    if device_type == "light":
+        column_name = "light_" + device_name
+        value = device['STATUS'].get('Power')
+        data_type = "bool"
+        return column_name, value, data_type
+    elif device_type == "plug":
+        column_name = "plug_" + device_name
+        value = device['STATUS'].get('Power')
+        data_type = "bool"
+        return column_name, value, data_type
+    elif device_type == "temp_sensor":
+        column_name = "temp_" + device_name
+        value = device['STATUS'].get('Temp')
+        data_type = "int"
+        return column_name, value, data_type
+    elif device_type == "motion_sensor":
+        column_name = "motion_" + device_name
+        value = device['STATUS'].get('Motion')
+        data_type = "varchar(10)"
+        return column_name, value, data_type
+    elif device_type == "light_sensor":
+        column_name = "light_environment"
+        value = device['STATUS'].get('brightness')
+        data_type = "varchar(10)"
+        return column_name, value, data_type
+    elif device_type == "door_sensor":
+        column_name = "door_" + device_name
+        value = device['STATUS'].get('State')
+        data_type = "varchar(10)"
+        return column_name, value, data_type
+    elif device_type == "master_power_meter":
+        column_name = "total_power"
+        value = device['STATUS'].get('Power')
+        data_type = "int"
+        return column_name, value, data_type
+def check_column(cursor, device:dict):
+    column_name, value, data_type = get_prefix(device)
+    query = "SHOW COLUMNS FROM main LIKE '" + column_name + "'"
+    cursor.execute(query)
+    result = cursor.fetchone()
+    if result:
+        return True
+    else:
+        add_column(cursor, column_name,data_type)
+        return True
+def add_column(cursor, column_name: str, data_type: str):
+    query = f"ALTER TABLE main ADD COLUMN `"+column_name+"` "+data_type+";"
+    cursor.execute(query)
+    cursor.fetchone()
+def append_to_database(MySQL_HOST:str, MySQL_USERNAME:str, MySQL_PASSWORD:str, devices:dict, current_timestamp:time):
     MySQL = mysql.connector.connect(host=MySQL_HOST, database='records', user=MySQL_USERNAME, password=MySQL_PASSWORD,connection_timeout=180000)
     cursor = MySQL.cursor()
     cursor.execute("select database();")
     cursor.fetchone()
-    if device_type == "light":
-        cursor.execute("SHOW TABLES LIKE '"+device_name+"'")
-        result = cursor.fetchone()
-        if not result:
-            query = "CREATE TABLE "+device_name+" (id varchar(30) NOT NULL, timestamp datetime NOT NULL, power_state bool NOT NULL, light_mode varchar(10) NOT NULL, brightness_level int NOT NULL, color varchar(30) NOT NULL, PRIMARY KEY (timestamp))"
-            cursor.execute(query)
-            cursor.fetchone()
-    elif device_type == "plug":
-        cursor.execute("SHOW TABLES LIKE '" + device_name + "'")
-        result = cursor.fetchone()
-        if not result:
-            query = "CREATE TABLE " + device_name + " (id varchar(30) NOT NULL, power_state bool NOT NULL, power_con int NOT NULL, PRIMARY KEY (id))"
-            cursor.execute(query)
-            cursor.fetchone()
-    cursor.close()
-    MySQL.close()
+    cursor.execute("SHOW TABLES LIKE 'main'")
+    result = cursor.fetchone()
 
+    if not result :
+        create_table(cursor)
+    for i in devices:
+        check_column(cursor,i)
+        MySQL.commit()
 
-def append_to_database_table(MySQL_HOST:str, MySQL_USERNAME:str, MySQL_PASSWORD:str, device:dict, timestamp:time):
-    device_name = device.get("Device_name")
-    device_type = device.get("Device_type")
-    device_id = device.get("Device_id")
-    args = device.get("STATUS").values
-    print("appending status to database " + device_name, end=' ')
-    MySQL = mysql.connector.connect(host=MySQL_HOST, database='records', user=MySQL_USERNAME, password=MySQL_PASSWORD)
-    cursor = MySQL.cursor()
-    if device_type == "light":
-        cursor.execute("SHOW TABLES LIKE '" + device_name + "'")
-        result = cursor.fetchone()
-        if result:
-            query = "INSERT INTO "+device_name+" (id, timestamp, power_state, light_mode, brightness_level, color) VALUES (%s, %s, %s, %s, %s, %s)"
-            val = (device_id, timestamp, args)
-            cursor.execute(query,val)
-            cursor.fetchone()
-            print(": inserted at " + timestamp)
-            MySQL.commit()
-        else:
-            database_create_table(device_type,device_name)
-    elif device_type == "plug":
-        cursor.execute("SHOW TABLES LIKE '" + device_name + "'")
-        result = cursor.fetchone()
-        if result:
-            query = "INSERT INTO " + device_name + " (id, power_state, power_con) VALUES (%s, %s, %s)"
-            val = (device_id, args[0], args[1])
-            cursor.execute(query,val)
-            MySQL.commit()
-            cursor.fetchone()
-            MySQL.commit()
-        else:
-            database_create_table(device_type, device_name)
+    #Append to
+    columns = []
+    values = []
+    for i in devices:
+        column_name, value, data_type = get_prefix(i)
+        columns.append("`"+column_name+"`")
+        values.append(value)
+    print(values)
+    columns.append('timestamp')
+    values.append(current_timestamp)
+
+    columns_str = ', '.join(columns)
+    placeholders = ', '.join(['%s'] * len(values))
+    query = f"INSERT INTO main ({columns_str}) VALUES ({placeholders})"
+    cursor.execute(query, values)
+
+    MySQL.commit()
     cursor.close()
     MySQL.close()

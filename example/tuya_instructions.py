@@ -11,8 +11,8 @@ def command(access_endpoint: str, access_id: str, access_key: str, args: dict):
             status_value = status_dict.get(key)
             if status_value is not None:
                 result.append({'code': code_value, 'value': status_value})
-    except:
-        print("Error in args conversion")
+    except Exception as e:
+        print("Error in args conversion: ",e)
     else:
         list(dc.send_command(dc.connect_to_tuya(access_endpoint, access_id, access_key), device_id, result).values())
 
