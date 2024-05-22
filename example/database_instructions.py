@@ -1,9 +1,9 @@
 import mysql.connector
 import time
 
-#Log to database at once (table: main)
-def create_table(cursor):
-    query = "CREATE TABLE main (timestamp datetime NOT NULL, PRIMARY KEY (timestamp))"
+#Log to database at once
+def create_table(cursor,table_name:str):
+    query = "CREATE TABLE "+table_name+" (timestamp datetime NOT NULL, PRIMARY KEY (timestamp))"
     cursor.execute(query)
     cursor.fetchone()
 
@@ -45,32 +45,33 @@ def get_prefix(device: dict):
         value = device['STATUS'].get('Power')
         data_type = "int"
         return column_name, value, data_type
-def check_column(cursor, device:dict):
+def check_column(cursor, device:dict, table_name:str):
     column_name, value, data_type = get_prefix(device)
-    query = "SHOW COLUMNS FROM main LIKE '" + column_name + "'"
+    query = "SHOW COLUMNS FROM "+table_name+" LIKE '" + column_name + "'"
     cursor.execute(query)
     result = cursor.fetchone()
     if result:
         return True
     else:
-        add_column(cursor, column_name,data_type)
+        add_column(cursor, column_name,data_type,table_name)
         return True
-def add_column(cursor, column_name: str, data_type: str):
-    query = f"ALTER TABLE main ADD COLUMN `"+column_name+"` "+data_type+";"
+def add_column(cursor, column_name: str, data_type: str,table_name:str):
+    query = f"ALTER TABLE "+table_name+" ADD COLUMN `"+column_name+"` "+data_type+";"
     cursor.execute(query)
     cursor.fetchone()
-def append_to_database(MySQL_HOST:str, MySQL_USERNAME:str, MySQL_PASSWORD:str, devices:dict, current_timestamp:time):
-    MySQL = mysql.connector.connect(host=MySQL_HOST, database='records', user=MySQL_USERNAME, password=MySQL_PASSWORD,connection_timeout=180000)
+def append_to_database(MySQL_connection_details:dict, devices:list, current_timestamp:time):
+    MySQL = mysql.connector.connect(host=MySQL_connection_details.get("HOST"), port=MySQL_connection_details.get("PORT"), database=MySQL_connection_details.get("DATABASE_NAME"), user=MySQL_connection_details.get("USERNAME"), password=MySQL_connection_details.get("PASSWORD"), ssl_ca=MySQL_connection_details.get("CA_path"),connection_timeout=180000)
+    table_name = MySQL_connection_details.get("TABLE_NAME")
     cursor = MySQL.cursor()
     cursor.execute("select database();")
     cursor.fetchone()
-    cursor.execute("SHOW TABLES LIKE 'main'")
+    cursor.execute("SHOW TABLES LIKE '"+table_name+"'")
     result = cursor.fetchone()
 
     if not result :
-        create_table(cursor)
+        create_table(cursor,table_name)
     for i in devices:
-        check_column(cursor,i)
+        check_column(cursor,i,table_name)
         MySQL.commit()
 
     #Append to
@@ -80,13 +81,12 @@ def append_to_database(MySQL_HOST:str, MySQL_USERNAME:str, MySQL_PASSWORD:str, d
         column_name, value, data_type = get_prefix(i)
         columns.append("`"+column_name+"`")
         values.append(value)
-    print(values)
     columns.append('timestamp')
     values.append(current_timestamp)
 
     columns_str = ', '.join(columns)
     placeholders = ', '.join(['%s'] * len(values))
-    query = f"INSERT INTO main ({columns_str}) VALUES ({placeholders})"
+    query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
     cursor.execute(query, values)
 
     MySQL.commit()

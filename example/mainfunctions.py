@@ -1,27 +1,35 @@
 from time import sleep
 import tuya_instructions as ti
 import database_instructions as da
-import socket
+from socket import socket, AF_INET, SOCK_STREAM, gethostname, gethostbyname
 import json
-import threading
+from threading import Thread
 import logging
 from datetime import datetime
 from sys import stdout
 
-###############################Spec define###############################
+# ##############################Spec define###############################
 # Tuya API Information
 ACCESS_ID = ""
 ACCESS_KEY = ""
 API_ENDPOINT = "https://openapi.tuyaus.com"
 # Database Information
-MySQL_HOST = 'localhost'
-MySQL_USERNAME = 'root'
-MySQL_PASSWORD = 'root'
+MySQL_connection_details = {
+    "HOST": "",
+    "PORT": 25060,
+    "DATABASE_NAME": "defaultdb",
+    "TABLE_NAME": "main",
+    "USERNAME": "",
+    "PASSWORD": "",
+    "CA_Path": "/ca-certificate.crt"
+}
 # Socket Information
-host = socket.gethostname()
-hostip = socket.gethostbyname(host)
-port = 12345
-
+Socket_hostname = gethostname()
+Socket_hostip = gethostbyname(Socket_hostname)
+Socket_port = 12345
+# Delay settings
+delay_automation = 60
+delay_database = 60
 #########################Declare global variable#########################
 DEVICES = []
 AUTOMATION = []
@@ -31,16 +39,21 @@ logging.basicConfig(stream=stdout, level=logging.INFO)
 logger = logging.getLogger('c')
 logger.setLevel(logging.DEBUG)
 
+
 ##############################Sub functions##############################
 # Handling DEVICES file
 def save_devices_to_file():
     with open('devices.txt', 'w') as devices_file:
         devices_file.write(json.dumps(DEVICES))
+
+
 def load_devices_from_file():
     global DEVICES
     DEVICES = json.load(open("devices.txt"))
     for i in DEVICES:
-        logger.info("Device loaded: "+i.get("Device_name"))
+        logger.info("Device loaded: " + i.get("Device_name"))
+
+
 def diff_devices(res1: dict):
     target = res1["Device_name"]
     obj = json.load(open("devices.txt"))
@@ -54,39 +67,50 @@ def diff_devices(res1: dict):
 
     for key in dict1.keys():
         if key in dict2.keys():
-            if dict1[key] != dict2[key]: return True
+            if dict1[key] != dict2[key]:
+                return True
         else:
             return True
     else:
         return False
-#Handling AUTOMATION file
+
+
+# Handling AUTOMATION file
 def save_automation_to_file():
     with open('automations.txt', 'w') as automation_file:
         automation_file.write(json.dumps(AUTOMATION))
+
+
 def load_automation_from_file():
     global AUTOMATION
     AUTOMATION = json.load(open("automations.txt"))
     for i in AUTOMATION:
-        logger.info("Automation loaded: " +i.get("Name"))
+        logger.info("Automation loaded: " + i.get("Name"))
 
-#Identify device and send command to tuya (run by command_from_mobile)
-def command_to_api(device_name: str,new_settings: dict):
+
+# Identify device and send command to tuya (run by command_from_mobile)
+def command_to_api(device_name: str, new_settings: dict):
     device = next((sub for sub in DEVICES if sub['Device_name'] == device_name), None)
     device['SET'] = new_settings
     ti.command(API_ENDPOINT, ACCESS_ID, ACCESS_KEY, device)
-    logger.info("Command passed to Tuya instruction: "+ device_name)
+    logger.info("Command passed to Tuya instruction: " + device_name)
 
-#Automation handling
+
+# Automation handling
 def add_automation(json_data):  # add an automation (run by handle_mobile_client)
     global AUTOMATION
     # if (json_data has Name, If, Then) ->
     AUTOMATION.append(json_data)
     save_automation_to_file()
+
+
 def remove_automation(name: str):  # remove an automation (run by handle_mobile_client)
     for i in AUTOMATION:
         if i.get("Name") == name:
             del AUTOMATION[i]
     save_automation_to_file()
+
+
 def push_automation_info_to_mobile(client_socket):  # send list of automations (run by handle_mobile_client)
     load_automation_from_file()
     for i in AUTOMATION:
@@ -100,12 +124,13 @@ def push_automation_info_to_mobile(client_socket):  # send list of automations (
             logger.error("Automation error sending text to mobile: ", e)
             break
 
+
 #############################Main functions##############################
-#Check and run automation
-def manage_automation():  # check automation condition periodically and run (periodicially)
+# Check and run automation
+def manage_automation():  # check automation condition periodically and run (periodically)
     logger.info("Automation started")
     while True:
-        sleep(60) # Delay automation doubling
+        sleep(delay_automation)  # Delay automation doubling
         for i in AUTOMATION:
             do = True
             # If for j in i:
@@ -124,35 +149,42 @@ def manage_automation():  # check automation condition periodically and run (per
                     if not tf < tc < tt:
                         do = False
             # Then for j in i:
-            if do == True:
+            if do:
                 for j in i["Then"]:
                     # Obtain device status Device_name = Device_name in Then[]
                     device = next((sub for sub in DEVICES if sub['Device_name'] == j["Device_name"]), None)
                     # check if device is already at that value in Then
                     current_value = device.get(j["variable"])
                     if current_value != j["value"]:
-                        logger.debug("Automation task execute: "+i["Name"])
+                        logger.debug("Automation task execute: " + i["Name"])
                         # Execute
                         execute: json
-                        if type(j["value"]) == str:
+                        if type(j["value"]) is str:
                             execute = json.loads('{"' + j["variable"] + '": "' + j["value"] + '"}')
-                        elif type(j["value"]) == bool:
+                        elif type(j["value"]) is bool:
                             execute = json.loads('{"' + j["variable"] + '": ' + str.lower(str(j["value"])) + '}')
                         else:
                             execute = json.loads('{"' + j["variable"] + '": ' + str(j["value"]) + '}')
                         command_to_api(j["Device_name"], execute)
-                        # Suspected that might not work eg. 'True' and True
-#Pull device status from Tuya
+                        # Suspected that might not work e.g. 'True' and True
+
+
+# Pull device status from Tuya
 def fetch_devices_stat():
     while True:
-        for i in DEVICES:
-            ti.request(API_ENDPOINT, ACCESS_ID, ACCESS_KEY, i) #can improve by call each device by each thread
-#Push message mobile application (when connected)
-def update_device_to_mobile(client_socket):  # Updating new value to mobile (periodicially, when changes occur)
+        try:
+            for i in DEVICES:
+                ti.request(API_ENDPOINT, ACCESS_ID, ACCESS_KEY, i)  # can improve by call each device by each thread
+        except Exception as e:
+            logger.error("fetch_devices_stat  " + str(datetime.now()) + " error: "+ str(e))
+
+
+# Push message mobile application (when connected)
+def update_device_to_mobile(client_socket):  # Updating new value to mobile (periodically, when changes occur)
     # Update client first time
     for i in DEVICES:
         data = i.get("STATUS")
-        data["msg_type"] = "Device_update"  # new line added here, haven't implement in mobile app yet
+        data["msg_type"] = "Device_update"  # new line added here, haven't implemented in mobile app yet
         data["Device_name"] = i["Device_name"]
         json_data = json.dumps(data)
         try:
@@ -180,12 +212,12 @@ def update_device_to_mobile(client_socket):  # Updating new value to mobile (per
                 except Exception as e:
                     logger.error("Device error sending text to mobile: ", e)
                     break
-            else:
-                logger.info("Device text no send")
         else:
             continue
         break
-#Handling command from mobile application (when connected)
+
+
+# Handling command from mobile application (when connected)
 def handle_mobile_client(client_socket):  # Handling request from mobile (on demand)
     while True:
         try:
@@ -203,52 +235,55 @@ def handle_mobile_client(client_socket):  # Handling request from mobile (on dem
             elif msg_type == "request_automation_list":
                 push_automation_info_to_mobile(client_socket)
             elif msg_type == "set_automation":
-                automation_name = json_data["automation_name"]
-                type = json_data["type"]
+                command_type = json_data["type"]
                 logger.info("Received request automation list from mobile: " + str(json_data))
-                del json_data["automation_name"]
-                if (type == "add"):
+                if command_type == "add":
                     add_automation(json_data)
-                elif (type == "set"):
+                elif command_type == "set":
                     remove_automation(json_data["Name"])
                     add_automation(json_data)
-                elif (type == "remove"):
+                elif command_type == "remove":
                     remove_automation(json_data["Name"])
         except Exception as e:
             logger.error("Handling mobile thread error: ", e)
             client_socket.close()
             break
-#Handle incoming socket from mobile application
+
+
+# Handle incoming socket from mobile application
 def connect_to_mobile():  # Initialize function
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((host, port))
+    server_socket = socket(AF_INET, SOCK_STREAM)
+    server_socket.bind((Socket_hostname, Socket_port))
     server_socket.listen(5)
-    logger.info("System initialized: " + host + " " + hostip)
+    logger.info("System initialized: " + Socket_hostname + " " + Socket_hostip)
     while True:
         # Accept a new connection
         client_socket, addr = server_socket.accept()
         logger.info('Got connection from', addr)
 
         # Start a new threads to handle the client
-        client_thread = threading.Thread(target=handle_mobile_client, args=(client_socket,))
-        value_thread = threading.Thread(target=update_device_to_mobile, args=(client_socket,))
+        client_thread = Thread(target=handle_mobile_client, args=(client_socket,))
+        value_thread = Thread(target=update_device_to_mobile, args=(client_socket,))
         client_thread.start()
         value_thread.start()
         client_thread.join()
         value_thread.join()
-#Append device status to Tuya
+
+
+# Append device status to Tuya
 def database_manage():
     while True:
-        da.append_to_database(MySQL_HOST, MySQL_USERNAME, MySQL_PASSWORD, DEVICES, datetime.now())
-        sleep(2)
+        da.append_to_database(MySQL_connection_details, DEVICES, datetime.now())
+        sleep(delay_database)
 
-
+logger.info("Settings: \n     Delay for Automation:" + str(delay_automation) + "\n     Delay for Database:" + str(
+    delay_database) + "\n     Database site: " + MySQL_connection_details.get("HOST"))
 load_devices_from_file()
 load_automation_from_file()
-mobile_thread = threading.Thread(target=connect_to_mobile)
-automation_thread = threading.Thread(target=manage_automation)
-fetch_devices_thread = threading.Thread(target=fetch_devices_stat)
-database_thread = threading.Thread(target=database_manage)
+mobile_thread = Thread(target=connect_to_mobile)
+automation_thread = Thread(target=manage_automation)
+fetch_devices_thread = Thread(target=fetch_devices_stat)
+database_thread = Thread(target=database_manage)
 mobile_thread.start()
 automation_thread.start()
 fetch_devices_thread.start()
