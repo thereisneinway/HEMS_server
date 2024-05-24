@@ -19,7 +19,7 @@ MySQL_connection_details = {
     "PORT": 25060,
     "DATABASE_NAME": "defaultdb",
     "TABLE_NAME": "main",
-    "USERNAME": "",
+    "USERNAME": "doadmin",
     "PASSWORD": "",
     "CA_Path": "/ca-certificate.crt"
 }
@@ -51,7 +51,7 @@ def load_devices_from_file():
     global DEVICES
     DEVICES = json.load(open("devices.txt"))
     for i in DEVICES:
-        logger.info("Device loaded: " + i.get("Device_name"))
+        logger.info(str(datetime.now()) + " Device loaded: " + i.get("Device_name"))
 
 
 def diff_devices(res1: dict):
@@ -85,7 +85,7 @@ def load_automation_from_file():
     global AUTOMATION
     AUTOMATION = json.load(open("automations.txt"))
     for i in AUTOMATION:
-        logger.info("Automation loaded: " + i.get("Name"))
+        logger.info(str(datetime.now()) + " Automation loaded: " + i.get("Name"))
 
 
 # Identify device and send command to tuya (run by command_from_mobile)
@@ -93,7 +93,7 @@ def command_to_api(device_name: str, new_settings: dict):
     device = next((sub for sub in DEVICES if sub['Device_name'] == device_name), None)
     device['SET'] = new_settings
     ti.command(API_ENDPOINT, ACCESS_ID, ACCESS_KEY, device)
-    logger.info("Command passed to Tuya instruction: " + device_name)
+    logger.info(str(datetime.now()) + " Command passed to Tuya instruction: " + device_name)
 
 
 # Automation handling
@@ -119,9 +119,9 @@ def push_automation_info_to_mobile(client_socket):  # send list of automations (
         json_data = json.dumps(i)
         try:
             client_socket.send((json_data + "\n").encode())
-            logger.info("Automation text send to mobile: " + i["Name"])
+            logger.info(str(datetime.now()) + " Automation text send to mobile: " + i["Name"])
         except Exception as e:
-            logger.error("Automation error sending text to mobile: ", e)
+            logger.error(str(datetime.now()) + " Automation error sending text to mobile: ", e)
             break
 
 
@@ -156,7 +156,7 @@ def manage_automation():  # check automation condition periodically and run (per
                     # check if device is already at that value in Then
                     current_value = device.get(j["variable"])
                     if current_value != j["value"]:
-                        logger.debug("Automation task execute: " + i["Name"])
+                        logger.debug(str(datetime.now()) + " Automation task execute: " + i["Name"])
                         # Execute
                         execute: json
                         if type(j["value"]) is str:
@@ -176,7 +176,7 @@ def fetch_devices_stat():
             for i in DEVICES:
                 ti.request(API_ENDPOINT, ACCESS_ID, ACCESS_KEY, i)  # can improve by call each device by each thread
         except Exception as e:
-            logger.error("fetch_devices_stat  " + str(datetime.now()) + " error: "+ str(e))
+            logger.error(str(datetime.now()) + "fetch_devices_stat  " + " error: "+ str(e))
 
 
 # Push message mobile application (when connected)
@@ -189,14 +189,14 @@ def update_device_to_mobile(client_socket):  # Updating new value to mobile (per
         json_data = json.dumps(data)
         try:
             client_socket.send((json_data + "\n").encode())
-            logger.info("Device initial text send to mobile: " + data["Device_name"])
+            logger.info(str(datetime.now()) + " Device initial text send to mobile: " + data["Device_name"])
         except Exception as e:
-            logger.error("Device error sending initial text to mobile: ", e)
+            logger.error(str(datetime.now()) + " Device error sending initial text to mobile: ", e)
             break
     while client_socket:
         for i in DEVICES:
             if "close" in str(client_socket):
-                logger.warning("update_device_to_mobile thread closing due to socket")
+                logger.warning(str(datetime.now()) + " update_device_to_mobile thread closing due to socket")
                 break
             # compare variable to file
             if diff_devices(i):
@@ -208,9 +208,9 @@ def update_device_to_mobile(client_socket):  # Updating new value to mobile (per
                 json_data = json.dumps(data)
                 try:
                     client_socket.send((json_data + "\n").encode())
-                    logger.info("Device text send to mobile: " + data["Device_name"])
+                    logger.info(str(datetime.now()) + " Device text send to mobile: " + data["Device_name"])
                 except Exception as e:
-                    logger.error("Device error sending text to mobile: ", e)
+                    logger.error(str(datetime.now())+ " Device error sending text to mobile: ", e)
                     break
         else:
             continue
@@ -228,7 +228,7 @@ def handle_mobile_client(client_socket):  # Handling request from mobile (on dem
             # Handle command
             if msg_type == "command":
                 device_name = json_data["Device_name"]
-                logger.info("Received device command from mobile: " + str(json_data))
+                logger.info(str(datetime.now()) + " Received device command from mobile: " + str(json_data))
                 del json_data["Device_name"]
                 arg = json_data["arg"]
                 command_to_api(device_name, arg)
@@ -236,7 +236,7 @@ def handle_mobile_client(client_socket):  # Handling request from mobile (on dem
                 push_automation_info_to_mobile(client_socket)
             elif msg_type == "set_automation":
                 command_type = json_data["type"]
-                logger.info("Received request automation list from mobile: " + str(json_data))
+                logger.info(str(datetime.now()) + " Received request automation list from mobile: " + str(json_data))
                 if command_type == "add":
                     add_automation(json_data)
                 elif command_type == "set":
@@ -245,7 +245,7 @@ def handle_mobile_client(client_socket):  # Handling request from mobile (on dem
                 elif command_type == "remove":
                     remove_automation(json_data["Name"])
         except Exception as e:
-            logger.error("Handling mobile thread error: ", e)
+            logger.error(str(datetime.now()) + " Handling mobile thread error: ", e)
             client_socket.close()
             break
 
@@ -255,11 +255,11 @@ def connect_to_mobile():  # Initialize function
     server_socket = socket(AF_INET, SOCK_STREAM)
     server_socket.bind((Socket_hostname, Socket_port))
     server_socket.listen(5)
-    logger.info("System initialized: " + Socket_hostname + " " + Socket_hostip)
+    logger.info(str(datetime.now()) + " System initialized: " + Socket_hostname + " " + Socket_hostip)
     while True:
         # Accept a new connection
         client_socket, addr = server_socket.accept()
-        logger.info('Got connection from', addr)
+        logger.info(str(datetime.now())+ ' Got connection from', addr)
 
         # Start a new threads to handle the client
         client_thread = Thread(target=handle_mobile_client, args=(client_socket,))
