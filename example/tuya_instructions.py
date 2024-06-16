@@ -1,6 +1,5 @@
 import device_control_and_mq as dc
 
-
 def command(access_endpoint: str, access_id: str, access_key: str, args: dict):
     try:
         device_id = args.get("Device_id")
@@ -13,7 +12,7 @@ def command(access_endpoint: str, access_id: str, access_key: str, args: dict):
             if status_value is not None:
                 result.append({'code': code_value, 'value': status_value})
     except Exception as e:
-        print("Error in args conversion: ", e)
+        print("Error in args conversion: ",e)
     else:
         list(dc.send_command(dc.connect_to_tuya(access_endpoint, access_id, access_key), device_id, result).values())
 
@@ -53,3 +52,4 @@ def list_function(access_endpoint: str, access_id: str, access_key: str, device_
         list(dc.obtain_instruction(dc.connect_to_tuya(access_endpoint, access_id, access_key), device_id).values())[0][
             'functions']
     return response
+
