@@ -1,5 +1,8 @@
 import json
 from datetime import datetime, timedelta
+
+import mysql
+
 import intelligent as ai
 #Function 1: Anti fight between AI and user
 
@@ -16,32 +19,26 @@ AI_CHANGED = [] #[{Device_name: FR, CMD: 0},{Device_name: FL, CMD: 45}...]
 #In funciton evaluate_device_status -> Add check condition if value = 1-60 then don't execute instruction
 
 #In function evaluate_device_status -> if value>0 then reduce value by 1 ,elif value<0 then increase by 1
-
-DEVICES = [] #Concate
+DEVICES = []
 AI_PREDICTED = [] #New
 ai_functionality = 0 #Replace - 0 for no AI, 1-3 for different models
+
 #Function 1: Predict schedule of operating time of devices
 #INPUT: sensors from database table / OUTPUT: List of dict of predicted operating schedule (saved for later)
-#Execute every n seconds (on separate thread)
+#Execute every n seconds m times (on separate thread, n is defined at start of app, m is no. of model)
 def append_prediction():
-    predicted_now = ai.evaluate_with_decision_tree(DEVICES)
+    predicted_now = {}
+    if ai_functionality == 1:
+        predicted_now = ai.evaluate_with_decision_tree(DEVICES)
+    elif ai_functionality == 2:
+        predicted_now = ai.evaluate_with_Xmodel(DEVICES)
     predicted_now['timestamp'] = datetime.now().strftime('%H:%M:%S')
     AI_PREDICTED.append(predicted_now)
 
-#Function 2: Calculate mean power of each devices
-#INPUT: fn5 / OUTPUT: power consumption of the device
-#Execute by fn4
-def calculate_device_average_power(device: dict):
-    if device["Device_type"] == "light":
-        return 100
-    elif device["Device_type"] == "plug":
-        return 300
-    else: return 0
-
-#Function 3: Find total runtime of each devices from fn1
-#INPUT: Database table / OUTPUT: List of dict of runtime of each devices
-#Execute by fn4
-def calculate_predicted_runtime(MySQL_connection_details: dict): #function from chatGPT and reconstruction, not revise yet
+#Function 2: Find REAL total runtime of each devices of the day
+#INPUT: Database table / OUTPUT: List of dict of REAL runtime of each devices
+#Executed at the evaluation before fn5, 1 times
+def calculate_real_runtime(MySQL_connection_details: dict): #function from chatGPT and reconstruction, not revise yet
     #TODO: query from database for today only
     MySQL = mysql.connector.connect(host=MySQL_connection_details.get("HOST"),
                                     port=MySQL_connection_details.get("PORT"),
@@ -104,39 +101,59 @@ def calculate_predicted_runtime(MySQL_connection_details: dict): #function from 
 
             last_status_time[device] = {"status": status, "timestamp": timestamp}
 
-    return runtime
-    #[{"Device_name": -- , "hour": --},{"Device_name": -- , "hour": --}]
+    return runtime #[{"Device_name": -- , "hour": --},{"Device_name": -- , "hour": --}]
 
-#Function 4: Find power of each devices for a day from fn2+fn3
-#INPUT fn2,fn3 / OUTPUT: List of dict of power consumption of each devices if device operate at predicted time
-#Execute when prediction performs
-def calculate_predicted_consumption(devices_runtime: []):
-    devices_consumption = []
-    for entry in devices_runtime:
-        device = next((sub for sub in DEVICES if sub['Device_name'] == entry["Devices_name"]), None)
-        devices_consumption.append({"Devices_name": entry["Devices_name"], "Consumption": entry["hour"]*calculate_device_average_power(device)})
-
-#Fucntion 5: Calculate total power of each devices in real scenario
-#INPUT n/a data from database table / OUTPUT: List of dict of total power consumption of each device in that day
-#Execute by fn3 , fn6
-def calculate_each_device_consumption():
+#Function 3: Find PREDICTED total runtime of each devices of the day
+#INPUT: AI_PREDICTED / OUTPUT: List of dict of PREDICTED runtime of each devices
+#Executed at the evaluation before fn5, 3 times by models
+def calculate_predicted_runtime(ai_predicted: []):
     print("A")
 
-#Function 6: Calculate diff power in real scenario and predicted from fn5
-#INPUT fn4, fn5 / OUTPUT: List of dict of difference in power consumption of each device
-#Execute by fn7
+#Function 4: Calculate mean power of each devices
+#INPUT: ? / OUTPUT: power consumption of the device
+#Executed at the evaluation before fn5, 1 times
+def calculate_device_average_power(device: dict):
+    if device["Device_type"] == "light":
+        return 100
+    elif device["Device_type"] == "plug":
+        return 300
+    else: return 0
+
+#Function 5: Find REAL/PREDICTED power of each devices for a day
+#INPUT fn2/fn3,fn4 / OUTPUT: List of dict of power consumption of each devices if device operate at predicted time
+#Execute at the evaluation before fn6, 4 times (1 real, 3 predicts)
+def calculate_each_devices_consumption(devices_runtime: [], devices: []):
+    devices_consumption = []
+    for entry in devices_runtime:
+        device = next((sub for sub in devices if sub['Device_name'] == entry["Devices_name"]), None)
+        devices_consumption.append({"Devices_name": entry["Devices_name"], "Consumption": entry["hour"]*calculate_device_average_power(device)})
+    return devices_consumption
+
+
+#Fucntion 6: Calculate REAL/PREDICTED total power of all devices in each scenario
+#INPUT fn5 / OUTPUT: List of dict of total power consumption of every device in that day
+#Execute at the evaluation before fn7, 4 times (1 real, 3 predicts)
+def calculate_total_consumption(devices_consumption: []):
+    sum = 0
+    for i in devices_consumption:
+        sum += i['Consumption']
+    return sum
+
+#Function 7: Calculate diff power in real scenario and predicted
+#INPUT fn6 / OUTPUT: List of dict of difference in power consumption of all devices
+#Execute at the evaluation by fn7
 def calculate_diff_average_power():
     print("A")
 
-#Function 7: Append power diff to file, to handle different model
+#Function 8: Append power diff to file, to handle different model
 #INPUT: none / OUTPUT: File
 #Execute at the end of the day x times (x = no. of model)
 
-#Function 8: Call power diff from file and send to mobile
+#Function 9: Call power diff from file and send to mobile
 #INPUT: File / OUTPUT: Mobile socket
 #Execute by handle_mobile_client
 
-#Function 9: Mark desired model by user from app
+#Function 10: Mark desired model by user from app
 #Change global variable
 #Execute by handle_mobile_client
 
