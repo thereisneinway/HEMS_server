@@ -301,11 +301,10 @@ def handle_mobile_client(client_socket):
                 global ai_functionality
                 ai_functionality = json_data["set"]
                 push_ai_stat_to_mobile(client_socket)
-            elif msg_type == "request_energy_history_list": #Tested work!
+            elif msg_type == "request_energy_history_list": #TODO: TEST
                 period = json_data["period"]
                 energy_history_dict = da.query_energy(MySQL_connection_details,period,datetime.now())
                 energy_history_dict["msg_type"] = "Energy_history"
-                print("DEBUG: " + str(energy_history_dict))
                 json_data = json.dumps(energy_history_dict)
                 client_socket.send((json_data + "\n").encode())
         except Exception as e:
@@ -350,19 +349,17 @@ def evaluate_device_status(): #Depreciated
                     device_name = i["Device_name"]
                     device = next((sub for sub in DEVICES if sub['Device_name'] == i["Device_name"]), None)
                     current_value = device.get("Power")
-                    print("AI PREDICTED: " + i["Device_name"] + " turn to " + i["Power"])
                     if current_value != i["Power"] and i["Power"] == 0: #ONLY TURN OFF, not turn on
                         del i["Device_name"]
-                        print("AI PREDICTED: Executed")
                         command_to_api(device_name, i)
             except Exception as e:
                 logger.error(str(datetime.now()) + " AI thread error: ", e)
+
         count += 1
         if count > 59:
-            da.calculate_energy(MySQL_connection_details,datetime.now())
-            logger.info(str(datetime.now())+ " Calculated energy and append to table")
+            da.calculate_energy(MySQL_connection_details, datetime.now())
+            logger.info(str(datetime.now()) + " Calculated energy and append to table")
             count = 0
-
         sleep(delay_ai)
         COMMAND_AI.clear()
 
