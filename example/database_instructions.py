@@ -69,7 +69,7 @@ def get_prefix(device: dict):
         return column_name, value, data_type
 
 
-def check_column(cursor, device: dict, table_name: str):
+def check_column_main_table(cursor, device: dict, table_name: str):
     column_name, value, data_type = get_prefix(device)
     query = "SHOW COLUMNS FROM " + table_name + " LIKE '" + column_name + "'"
     cursor.execute(query)
@@ -78,6 +78,21 @@ def check_column(cursor, device: dict, table_name: str):
         return True
     else:
         add_column(cursor, column_name, data_type, table_name)
+        return True
+
+
+def check_column_energy_table(cursor, energy_table_name: str):
+    cursor.execute("SHOW TABLES LIKE '" + energy_table_name + "'")
+    result = cursor.fetchone()
+    if not result:
+        create_table(cursor, energy_table_name)
+    query = "SHOW COLUMNS FROM " + energy_table_name + " LIKE '" + "energy" + "'"
+    cursor.execute(query)
+    result = cursor.fetchone()
+    if result:
+        return True
+    else:
+        add_column(cursor, "energy", "int", energy_table_name)
         return True
 
 
@@ -104,7 +119,7 @@ def append_to_database(MySQL_connection_details: dict, devices: list, current_ti
     if not result:
         create_table(cursor, table_name)
     for i in devices:
-        check_column(cursor, i, table_name)
+        check_column_main_table(cursor, i, table_name)
         MySQL.commit()
 
     # Append to
@@ -143,13 +158,10 @@ def calculate_energy(MySQL_connection_details: dict, current_timestamp: time):
     result = cursor.fetchone()
     if not result:
         raise Exception("Table not found")
-    cursor.execute("SHOW TABLES LIKE '" + energy_table_name + "'")
-    result = cursor.fetchone()
-    if not result:
-        create_table(cursor, energy_table_name)
+    check_column_energy_table(cursor, energy_table_name)
 
     one_hour_ago = current_timestamp - timedelta(hours=1)
-    query = """
+    query = f"""
     SELECT timestamp, total_power
     FROM {table_name}
     WHERE timestamp BETWEEN %s AND %s
@@ -161,7 +173,7 @@ def calculate_energy(MySQL_connection_details: dict, current_timestamp: time):
     INSERT INTO {energy_table_name} (timestamp, energy)
     VALUES (%s, %s)
     """
-    cursor.execute(insert_query, (current_timestamp, total_energy_usage))
+    cursor.execute(insert_query, (current_timestamp.strftime('%Y-%m-%d %H:00:00'), total_energy_usage))
     MySQL.commit()
     cursor.close()
     MySQL.close()
@@ -194,7 +206,9 @@ def query_energy(MySQL_connection_details: dict, period: str, current_timestamp:
                     WHERE timestamp BETWEEN %s AND %s
                     """
             cursor.execute(query, (start_time, end_time))
-            value[datetime.strptime(start_time, '%H:%M').strftime('%H:%M')] = cursor.fetchone()[0]
+            result = cursor.fetchone()[0]
+            if result: value[start_time.strftime('%Y-%m-%d %H:00:00')] = int(result)
+            else: value[start_time.strftime('%Y-%m-%d')] = 0
             end_time = start_time
             start_time = start_time - timedelta(hours=1)
     elif period == 'day':
@@ -207,7 +221,9 @@ def query_energy(MySQL_connection_details: dict, period: str, current_timestamp:
                     WHERE timestamp BETWEEN %s AND %s
                     """
             cursor.execute(query, (start_time, end_time))
-            value[datetime.strptime(start_time, '%d/%m/%Y').strftime('%d/%m/%Y')] = cursor.fetchone()[0]
+            result = cursor.fetchone()[0]
+            if result: value[start_time.strftime('%Y-%m-%d')] = int(result)
+            else: value[start_time.strftime('%Y-%m-%d')] = 0
             end_time = start_time
             start_time = start_time - timedelta(days=1)
     elif period == 'week':
@@ -221,7 +237,9 @@ def query_energy(MySQL_connection_details: dict, period: str, current_timestamp:
                     WHERE timestamp BETWEEN %s AND %s
                     """
             cursor.execute(query, (start_time, end_time))
-            value[datetime.strptime(start_time, '%d/%m/%Y').strftime('%d/%m/%Y')] = cursor.fetchone()[0]
+            result = cursor.fetchone()[0]
+            if result: value[start_time.strftime('%Y-%m-%d')] = int(result)
+            else: value[start_time.strftime('%Y-%m-%d')] = 0
             end_time = start_time
             start_time = start_time - timedelta(weeks=1)
     else:

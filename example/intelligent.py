@@ -3,7 +3,7 @@ import joblib
 import database_instructions as da
 
 
-def evaluate(DEVICES: list):
+def evaluate_with_decision_tree(DEVICES: list):
     model = joblib.load("model.pkl")
     df = pd.DataFrame()
     y_list = []

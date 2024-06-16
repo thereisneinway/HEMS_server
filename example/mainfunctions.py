@@ -11,18 +11,18 @@ from sys import stdout
 
 # ##############################Spec define###############################
 # Tuya API Information
-ACCESS_ID = "11860382c9802039h3ta"
-ACCESS_KEY = "adc69aab797049bd9426c623e9cad681"
+ACCESS_ID = ""
+ACCESS_KEY = ""
 API_ENDPOINT = "https://openapi.tuyaus.com"
 # Database Information
 MySQL_connection_details = {
-    "HOST": "db-mysql-sgp1-38053-do-user-15940348-0.c.db.ondigitalocean.com",
+    "HOST": "",
     "PORT": 25060,
     "DATABASE_NAME": "defaultdb",
     "TABLE_NAME": "test",
     "ENERGY_TABLE_NAME": "energy_test",
     "USERNAME": "doadmin",
-    "PASSWORD": "AVNS_ZcJ9e6o0CGQxIjhdDcY",
+    "PASSWORD": "",
     "CA_Path": "/ca-certificate.crt"
 }
 # Socket Information
@@ -301,10 +301,11 @@ def handle_mobile_client(client_socket):
                 global ai_functionality
                 ai_functionality = json_data["set"]
                 push_ai_stat_to_mobile(client_socket)
-            elif msg_type == "request_energy_history_list": #TODO: TEST
+            elif msg_type == "request_energy_history_list": #Tested work!
                 period = json_data["period"]
                 energy_history_dict = da.query_energy(MySQL_connection_details,period,datetime.now())
                 energy_history_dict["msg_type"] = "Energy_history"
+                print("DEBUG: " + str(energy_history_dict))
                 json_data = json.dumps(energy_history_dict)
                 client_socket.send((json_data + "\n").encode())
         except Exception as e:
@@ -338,21 +339,30 @@ def database_manage():
 
 
 # AI function
-def evaluate_device_status(): #TODO: VER 6 - RE-TEST device stat checker
+def evaluate_device_status(): #Depreciated
     COMMAND_AI = []
+    count = 0
     while True:
         if ai_functionality:
             try:
-                COMMAND_AI = ai.evaluate(DEVICES)
+                COMMAND_AI = ai.evaluate_with_decision_tree(DEVICES)
                 for i in COMMAND_AI:
                     device_name = i["Device_name"]
                     device = next((sub for sub in DEVICES if sub['Device_name'] == i["Device_name"]), None)
                     current_value = device.get("Power")
+                    print("AI PREDICTED: " + i["Device_name"] + " turn to " + i["Power"])
                     if current_value != i["Power"] and i["Power"] == 0: #ONLY TURN OFF, not turn on
                         del i["Device_name"]
+                        print("AI PREDICTED: Executed")
                         command_to_api(device_name, i)
             except Exception as e:
                 logger.error(str(datetime.now()) + " AI thread error: ", e)
+        count += 1
+        if count > 59:
+            da.calculate_energy(MySQL_connection_details,datetime.now())
+            logger.info(str(datetime.now())+ " Calculated energy and append to table")
+            count = 0
+
         sleep(delay_ai)
         COMMAND_AI.clear()
 
