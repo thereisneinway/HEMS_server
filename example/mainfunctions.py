@@ -118,19 +118,27 @@ def remove_automation(name: str):  # remove an automation (run by handle_mobile_
     return save_automation_to_file()
 
 
-def push_automation_info_to_mobile(
-        client_socket):  # send list of automations (run by handle_mobile_client) TESTED WORK!
+def push_automation_info_to_mobile(client_socket):  # send list of automations (run by handle_mobile_client) TESTED WORK!
     load_automation_from_file()
-    for i in AUTOMATION:
-        data = i
-        data["msg_type"] = "Automation_update"
+    if len(AUTOMATION) != 0:
+        for i in AUTOMATION:
+            data = i
+            data["msg_type"] = "Automation_update"
+            json_data = json.dumps(data)
+            try:
+                client_socket.send((json_data + "\n").encode())
+                logger.info(str(datetime.now()) + " Automation text send to mobile: " + i["Name"])
+            except Exception as e:
+                logger.error(str(datetime.now()) + " Automation error sending text to mobile: "+str(e))
+                break
+    else:
+        data = {"msg_type": "Automation_update"}
         json_data = json.dumps(data)
         try:
             client_socket.send((json_data + "\n").encode())
-            logger.info(str(datetime.now()) + " Automation text send to mobile: " + i["Name"])
+            logger.info(str(datetime.now()) + " Automation text send to mobile: None" )
         except Exception as e:
-            logger.error(str(datetime.now()) + " Automation error sending text to mobile: ", e)
-            break
+            logger.error(str(datetime.now()) + " Automation error sending text to mobile: "+str(e))
 
 
 def push_ai_stat_to_mobile(client_socket):
@@ -138,9 +146,9 @@ def push_ai_stat_to_mobile(client_socket):
         data = {"msg_type": "AI_functionality_update", "AI": ai_functionality}
         json_data = json.dumps(data)
         client_socket.send((json_data + "\n").encode())
-        logger.info(str(datetime.now()) + " AI status sending to mobile: " + str(ai_functionality))
+        logger.info(str(datetime.now()) + " Send text to mobile AI set: " + str(ai_functionality))
     except Exception as e:
-        logger.error(str(datetime.now()) + " Device error sending initial text to mobile: ", e)
+        logger.error(str(datetime.now()) + " Error sending text to mobile AI set: "+ str(e))
 
 
 # Main functions
@@ -203,9 +211,9 @@ def update_device_to_mobile(client_socket):
         json_data = json.dumps(data)
         try:
             client_socket.send((json_data + "\n").encode())
-            logger.info(str(datetime.now()) + " Device initial text send to mobile: " + data["Device_name"])
+            logger.info(str(datetime.now()) + " Send initial text to mobile device: " + data["Device_name"])
         except Exception as e:
-            logger.error(str(datetime.now()) + " Device error sending initial text to mobile: ", e)
+            logger.error(str(datetime.now()) + " Error sending initial text to mobile: "+str(e))
             break
     push_automation_info_to_mobile(client_socket)
     push_ai_stat_to_mobile(client_socket)
@@ -223,9 +231,9 @@ def update_device_to_mobile(client_socket):
                 json_data = json.dumps(data)
                 try:
                     client_socket.send((json_data + "\n").encode())
-                    logger.info(str(datetime.now()) + " Device text send to mobile: " + data["Device_name"])
+                    logger.info(str(datetime.now()) + " Send text to mobile device: " + data["Device_name"])
                 except Exception as e:
-                    logger.error(str(datetime.now()) + " Device error sending text to mobile: ", e)
+                    logger.error(str(datetime.now()) + " Error sending text to mobile: "+str(e))
                     break
         else:
             continue
@@ -239,11 +247,11 @@ def handle_mobile_client(client_socket):
             request = client_socket.recv(1024).decode()
             json_data = json.loads(request)
             msg_type = json_data["type"]
+            logger.info(str(datetime.now()) + " Received from mobile: " + str(json_data))
             if msg_type == "command":
                 domain = json_data["Domain"]
                 if domain == "tuya":
                     device_name = json_data["Device_name"]
-                    logger.info(str(datetime.now()) + " Received device command from mobile: " + str(json_data))
                     del json_data["Device_name"]
                     del json_data["Domain"]
                     arg = json_data["arg"]
@@ -254,7 +262,6 @@ def handle_mobile_client(client_socket):
                 push_automation_info_to_mobile(client_socket)
             elif msg_type == "set_automation":
                 command_type = json_data["set_type"]
-                logger.info(str(datetime.now()) + " Received request automation list from mobile: " + str(json_data))
                 if command_type == "add":
                     del json_data["set_type"]
                     del json_data["type"]
@@ -264,14 +271,14 @@ def handle_mobile_client(client_socket):
                             do = False
                     if do:
                         if add_automation(json_data):
-                            client_socket.send((
-                                                       "{'msg_type': 'Automation_instruction_response', 'status': 'Add success'}" + "\n").encode())
+                            client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Add success'}" + "\n").encode())
+                            logger.info(str(datetime.now()) + " Send text to mobile automation: Add success")
                         else:
-                            client_socket.send((
-                                                       "{'msg_type': 'Automation_instruction_response', 'status': 'Add failed'}" + "\n").encode())
+                            client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Add failed'}" + "\n").encode())
+                            logger.info(str(datetime.now()) + " Send text to mobile automation: Add failed")
                     else:
-                        client_socket.send((
-                                                   "{'msg_type': 'Automation_instruction_response', 'status': 'Add failed, Duplicated'}" + "\n").encode())
+                        client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Add failed, Duplicated'}" + "\n").encode())
+                        logger.info(str(datetime.now()) + " Send text to mobile automation: Add failed, Duplicated")
                 elif command_type == "set":
                     del json_data["set_type"]
                     del json_data["type"]
@@ -282,21 +289,21 @@ def handle_mobile_client(client_socket):
                     if exist:
                         if remove_automation(json_data["Name"]):
                             if add_automation(json_data):
-                                client_socket.send((
-                                                           "{'msg_type': 'Automation_instruction_response', 'status': 'Set success'}" + "\n").encode())
+                                client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Set success'}" + "\n").encode())
+                                logger.info(str(datetime.now()) + " Send text to mobile automation: Set success")
                         else:
-                            client_socket.send((
-                                                       "{'msg_type': 'Automation_instruction_response', 'status': 'Set failed'}" + "\n").encode())
+                            client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Set failed'}" + "\n").encode())
+                            logger.info(str(datetime.now()) + " Send text to mobile automation: Set failed")
                     else:
-                        client_socket.send((
-                                                   "{'msg_type': 'Automation_instruction_response', 'status': 'Set failed, Does not exist'}" + "\n").encode())
+                        client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Set failed, Does not exist'}" + "\n").encode())
+                        logger.info(str(datetime.now()) + " Send text to mobile automation: Set failed, Does not exist")
                 elif command_type == "remove":
                     if remove_automation(json_data["Name"]):
-                        client_socket.send((
-                                                   "{'msg_type': 'Automation_instruction_response', 'status': 'Remove success'}" + "\n").encode())
+                        client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Remove success'}" + "\n").encode())
+                        logger.info(str(datetime.now()) + " Send text to mobile automation: Remove success")
                     else:
-                        client_socket.send((
-                                                   "{'msg_type': 'Automation_instruction_response', 'status': 'Remove failed'}" + "\n").encode())
+                        client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Remove failed'}" + "\n").encode())
+                        logger.info(str(datetime.now()) + " Send text to mobile automation: Remove failed")
             elif msg_type == "set_ai_functionality":
                 global ai_functionality
                 ai_functionality = json_data["set"]
@@ -307,8 +314,9 @@ def handle_mobile_client(client_socket):
                 energy_history_dict["msg_type"] = "Energy_history"
                 json_data = json.dumps(energy_history_dict)
                 client_socket.send((json_data + "\n").encode())
+                logger.info(str(datetime.now()) + " Send text to mobile energy history")
         except Exception as e:
-            logger.error(str(datetime.now()) + " Handling mobile thread error: ", e)
+            logger.error(str(datetime.now()) + " Handling mobile thread error: "+ str(e))
             client_socket.close()
             break
 
@@ -353,7 +361,7 @@ def evaluate_device_status(): #Depreciated
                         del i["Device_name"]
                         command_to_api(device_name, i)
             except Exception as e:
-                logger.error(str(datetime.now()) + " AI thread error: ", e)
+                logger.error(str(datetime.now()) + " AI thread error: "+str(e))
 
         count += 1
         if count > 59:
