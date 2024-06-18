@@ -1,0 +1,14 @@
+[{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": false, "Artificial fan": true, "timestamp": "2024/06/17 20:23:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": false, "Artificial fan": true, "timestamp": "2024/06/17 20:24:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": false, "Artificial fan": true, "timestamp": "2024/06/17 20:25:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": false, "Artificial fan": true, "timestamp": "2024/06/17 20:26:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": false, "Artificial fan": true, "timestamp": "2024/06/17 20:27:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": false, "Artificial fan": true, "timestamp": "2024/06/17 20:28:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": false, "Artificial fan": true, "timestamp": "2024/06/17 20:29:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": true, "Artificial fan": true, "timestamp": "2024/06/17 20:30:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": true, "Artificial fan": true, "timestamp": "2024/06/17 20:31:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": false, "Artificial fan": true, "timestamp": "2024/06/17 20:32:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": false, "Floor lamp": false, "Artificial fan": true, "timestamp": "2024/06/17 20:33:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": true, "Floor lamp": true, "Artificial fan": true, "timestamp": "2024/06/17 20:34:00"},
+{"Shower": true, "FR": false, "FL": false, "AC": false, "Recirculation fan": true, "Floor lamp": true, "Artificial fan": true, "timestamp": "2024/06/17 20:35:00"}
+]

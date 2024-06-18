@@ -1,112 +1,7 @@
-import json
-from datetime import datetime, timedelta
-import time
-
-import mysql
-
-import intelligent as ai
-#Function 1: Anti fight between AI and user
-
-AI_CHANGED = [] #[{Device_name: FR, CMD: 0},{Device_name: FL, CMD: 45}...]
-
-#0 -> Normal state                                  / AI can mess       /
-#-1 -> AI just changed the device state             / AI can't mess     / Increased by 1 every minute
-#1-60 -> When user make adjustment when value = -1  / AI can't mess     / Reduced by 1 every minute
-
-#In function read_file -> append controlled device to AI_CHANGED
-
-#In function Handle_mobile_client -> Add check condition if value = -1 then change to 60
-
-#In funciton evaluate_device_status -> Add check condition if value = 1-60 then don't execute instruction
-
-#In function evaluate_device_status -> if value>0 then reduce value by 1 ,elif value<0 then increase by 1
-DEVICES = []
-delay_ai = 60
-AI_PREDICTED_1 = [] #New
-AI_PREDICTED_2 = [] #New
-AI_PREDICTED_3 = [] #New
-ai_functionality = -1 #Replace - -1 for no AI, 0-2 for different models
-
-
-
-
-
-
-
-
-
-#Function 9: Call power diff from file and send to mobile
-#INPUT: File / OUTPUT: Mobile socket
-#Execute by handle_mobile_client
-
-#Function 10: Mark desired model by user from app
-#Change global variable
-#Execute by handle_mobile_client
-
-
-#Task 1: Implement 3 models more
-
-
-
-
-
-
-
-
-
-
-
-
-
-#Function 2: List evaluated result (Cancel, too advance)
-'''
-
-def summary_prediction(): # Execute at the end of the day
-                          # Return List of dicts of changed status
-    AI_PREDICTED.sort(key=lambda x: (x['device'], x['timestamp']))
-    last_status = {}
-    state_changes = []
-
-    for i in AI_PREDICTED:
-        device = i['Device_name']
-        timestamp = i['timestamp']
-        status = i['Power']
-
-        # If the device is seen for the first time or status changes, record it
-        if device not in last_status or last_status[device] != status:
-            state_changes.append({
-                "timestamp": timestamp,
-                "Device_name": device,
-                "Power": status
-            })
-            last_status[device] = status
-
-    save_table_to_file(state_changes)
-
-def flush_predictions(): # Execute after save_table_to_file()
-    global AI_PREDICTED
-    AI_PREDICTED.clear()
-
-def save_table_to_file(state_changes: []): # Execute after summary_prediction()
-    with open('predicted_table.txt', 'w') as devices_file:
-        devices_file.write(json.dumps(state_changes))
-
-def load_devices_from_file_and_send_to_mobile(): # Execute on demand from handle_mobile_client
-    k = json.load(open("devices.txt"))
-'''
-
-
-
-
-
-
-
-
-
-
-
-'''import pandas as pd
+import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
 import joblib
 from sklearn.model_selection import train_test_split
 
@@ -115,7 +10,7 @@ data = pd.read_csv('cleaned_Data.csv')
 X = data.drop(columns=['light_Shower','light_FR','light_FL','plug_Recirculation fan','plug_Floor lamp','plug_Artificial fan','plug_AC','timestamp'])
 y = data[target]
 X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.1,random_state=0)
-clf = DecisionTreeClassifier()
+clf = MLPClassifier()
 
 clf.fit(X_train,y_train)
 y_pred = clf.predict(X_test)
@@ -200,6 +95,4 @@ print(y_real[0][0])
 
 
 # Export model
-#joblib.dump(clf, 'model.pkl')
-
-'''
+joblib.dump(clf, 'model_LTSM.pkl')

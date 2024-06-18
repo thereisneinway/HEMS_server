@@ -3,7 +3,7 @@ import mysql.connector
 import time
 
 
-# TASK IMPORTANT: CHANGE plug_book to plug_AC, MAP all string value to int (for database and intelligent)
+
 
 # Log to database at once
 def create_table(cursor, table_name: str):
@@ -250,4 +250,52 @@ def query_energy(MySQL_connection_details: dict, period: str, current_timestamp:
 
     return value
 
-# TODO: test function query_energy, calculate_energy
+#NEW FUNCTION
+def query_database_for_calculate_runtime(MySQL_connection_details: dict,current_timestamp: time):
+    MySQL = mysql.connector.connect(host=MySQL_connection_details.get("HOST"),
+                                    port=MySQL_connection_details.get("PORT"),
+                                    database=MySQL_connection_details.get("DATABASE_NAME"),
+                                    user=MySQL_connection_details.get("USERNAME"),
+                                    password=MySQL_connection_details.get("PASSWORD"),
+                                    ssl_ca=MySQL_connection_details.get("CA_path"), connection_timeout=180000)
+    table_name = MySQL_connection_details.get("TABLE_NAME")
+    cursor = MySQL.cursor(dictionary=True)
+    cursor.execute("select database();")
+    cursor.fetchone()
+    cursor.execute("SHOW TABLES LIKE '" + table_name + "'")
+    result = cursor.fetchone()
+    if not result:
+        raise Exception("Table not found")
+
+    start_time = datetime(current_timestamp.year, current_timestamp.month, current_timestamp.day) - timedelta(days=1)
+    end_time = datetime(current_timestamp.year, current_timestamp.month,
+                        current_timestamp.day)  # MUST Run after midnight
+    # Hard code specific device TESTED WORK!
+    query = f"""
+            SELECT *
+            FROM (
+                SELECT *,
+                       LAG(light_Shower) OVER (ORDER BY timestamp) AS prev_light_Shower,
+                       LAG(light_FR) OVER (ORDER BY timestamp) AS prev_light_FR,
+                       LAG(light_FL) OVER (ORDER BY timestamp) AS prev_light_FL,
+                       LAG(plug_AC) OVER (ORDER BY timestamp) AS prev_plug_AC,
+                       LAG("plug_Recirculation fan") OVER (ORDER BY timestamp) AS "prev_plug_Recirculation fan",
+                       LAG("plug_Floor lamp") OVER (ORDER BY timestamp) AS "prev_plug_Floor lamp",
+                       LAG("plug_Artificial fan") OVER (ORDER BY timestamp) AS "prev_plug_Artificial fan"
+
+                FROM {table_name}
+            ) subquery
+            WHERE timestamp BETWEEN '{start_time}' AND '{end_time}'
+               AND ((light_Shower != prev_light_Shower)
+               OR (light_FR != prev_light_FR)
+               OR (light_FL != prev_light_FL)
+               OR (plug_AC != prev_plug_AC)
+               OR ("plug_Recirculation fan" != "prev_plug_Recirculation fan")
+               OR ("plug_Floor lamp" != "prev_plug_Floor lamp")
+               OR ("plug_Artificial fan" != "prev_plug_Artificial fan"));
+            """
+    cursor.execute(query)
+    real_runtime_table = cursor.fetchall()
+    cursor.close()
+    MySQL.close()
+    return real_runtime_table
