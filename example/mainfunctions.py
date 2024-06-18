@@ -16,7 +16,7 @@ ACCESS_KEY = ""
 API_ENDPOINT = "https://openapi.tuyaus.com"
 # Database Information
 MySQL_connection_details = {
-    "HOST": "",
+    "HOST": "db-mysql-sgp1-38053-do-user-15940348-0.c.db.ondigitalocean.com",
     "PORT": 25060,
     "DATABASE_NAME": "defaultdb",
     "TABLE_NAME": "test",
@@ -35,7 +35,7 @@ delay_automation = 60
 delay_ai = 60
 delay_database = 60
 # AI settings
-ai_functionality = -1
+ai_functionality = 0
 # Declare global variable
 DEVICES = []
 AUTOMATION = []
@@ -428,16 +428,15 @@ def push_energy_prediction_to_mobile(client_socket):
         except Exception as e:
             logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
 
-def evaluate_device_status(predicted): #Ver 7 - Execute AI
+def evaluate_device_status(predicted): #Ver 7.1 - tested
     try:
-        for i in predicted:
-            device_name = i["Device_name"]
-            device = next((sub for sub in DEVICES if sub['Device_name'] == i["Device_name"]), None)
+        del predicted['timestamp']
+        for key, value in predicted.items():
+            device = next((sub for sub in DEVICES if sub['Device_name'] == key), None)
             current_value = device.get("Power")
-            if current_value != i["Power"] and i["Power"] == 0:
-                del i["Device_name"]
-                command_to_api(device_name, i)
-                logger.info(str(datetime.now()) + " AI executed device " + device_name)
+            if current_value != value and value == False:
+                command_to_api(key, {'Power': value})
+                logger.info(str(datetime.now()) + " AI executed device " + key)
     except Exception as e:
         logger.error(str(datetime.now()) + " AI thread error: "+str(e))
 
@@ -476,19 +475,19 @@ load_devices_from_file()
 load_automation_from_file()
 mobile_thread = Thread(target=connect_to_mobile)
 automation_thread = Thread(target=manage_automation)
-fetch_devices_thread = Thread(target=fetch_devices_stat)
-database_thread = Thread(target=database_manage)
+#fetch_devices_thread = Thread(target=fetch_devices_stat)
+#database_thread = Thread(target=database_manage)
 plug_thread = Thread(target=read_plug)
 ai_thread = Thread(target=append_prediction)
 mobile_thread.start()
 automation_thread.start()
-fetch_devices_thread.start()
-database_thread.start()
+#fetch_devices_thread.start()
+#database_thread.start()
 plug_thread.start()
 ai_thread.start()
 mobile_thread.join()
 automation_thread.join()
-fetch_devices_thread.join()
-database_thread.join()
+#fetch_devices_thread.join()
+#database_thread.join()
 plug_thread.join()
 ai_thread.join()
