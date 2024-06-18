@@ -16,7 +16,7 @@ ACCESS_KEY = ""
 API_ENDPOINT = "https://openapi.tuyaus.com"
 # Database Information
 MySQL_connection_details = {
-    "HOST": "db-mysql-sgp1-38053-do-user-15940348-0.c.db.ondigitalocean.com",
+    "HOST": "",
     "PORT": 25060,
     "DATABASE_NAME": "defaultdb",
     "TABLE_NAME": "test",
@@ -140,9 +140,9 @@ def push_automation_info_to_mobile(client_socket):  # send list of automations (
             json_data = json.dumps(data)
             try:
                 client_socket.send((json_data + "\n").encode())
-                logger.info(str(datetime.now()) + " Automation text send to mobile: " + i["Name"])
+                logger.info(str(datetime.now()) + " Send text to mobile Automation: " + i["Name"])
             except Exception as e:
-                logger.error(str(datetime.now()) + " Automation error sending text to mobile: "+str(e))
+                logger.error(str(datetime.now()) + " Error sending text to mobile Automation: "+str(e))
                 break
     else:
         data = {"msg_type": "Automation_update"}
@@ -156,7 +156,7 @@ def push_automation_info_to_mobile(client_socket):  # send list of automations (
 
 def push_ai_stat_to_mobile(client_socket):
     try:
-        data = {"msg_type": "AI_functionality_update", "AI": ai_functionality}
+        data = {"msg_type": "AI_functionality_update", "status": ai_functionality}
         json_data = json.dumps(data)
         client_socket.send((json_data + "\n").encode())
         logger.info(str(datetime.now()) + " Send text to mobile AI set: " + str(ai_functionality))
@@ -365,7 +365,7 @@ def database_manage():
 
 # AI function
 def append_prediction(): #Ver 7 - Predict for user to choose later and execution
-    count = 0
+    evaluated_flag = 0
     while True:
         predicted = []
         predicted.append(ai.evaluate_with_model("model_decisionTree.pkl", DEVICES))
@@ -377,13 +377,20 @@ def append_prediction(): #Ver 7 - Predict for user to choose later and execution
         AI_PREDICTED_1.append(predicted[0])
         AI_PREDICTED_2.append(predicted[1])
         AI_PREDICTED_3.append(predicted[2])
+        now = datetime.now()
         if ai_functionality != -1:
+            logger.debug(str(datetime.now()) + " Executing evaluate_device_status")
             evaluate_device_status(predicted[ai_functionality])
-        count += 1
-        if count > 59:
+        if now.minute == 0:
             da.calculate_energy(MySQL_connection_details, datetime.now())
             logger.info(str(datetime.now()) + " Calculated energy and append to table")
-            count = 0
+        if now.hour == 0 and now.minute == 0 and evaluated_flag == 0:
+            logger.debug(str(datetime.now()) + " Executing evaluate_models")
+            evaluate_models()
+            evaluated_flag = 1
+        if now.hour == 1 and now.minute == 0:
+            logger.debug(str(datetime.now()) + " Executing flag reset for evaluate_models")
+            evaluated_flag = 0
         sleep(delay_ai)
 def evaluate_models(): #Run daily after midnight
     real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
@@ -405,7 +412,21 @@ def evaluate_models(): #Run daily after midnight
     logger.info(str(datetime.now()) +" Energy calculation of real s: " + str(total_real_consumption))
     energy = {"Model 1": total_predict1_consumption,"Model 2": total_predict2_consumption,"Model 3": total_predict3_consumption,"Real": total_real_consumption}
     save_energy_prediction_to_file(energy)
+    #Flush prediction after evaluate
+    AI_PREDICTED_1.clear()
+    AI_PREDICTED_2.clear()
+    AI_PREDICTED_3.clear()
 
+def push_energy_prediction_to_mobile(client_socket):
+    energy_list = load_energy_prediction_from_file()
+    if len(energy_list) != 0:
+        energy_list["msg_type"] = "Energy_prediction"
+        json_data = json.dumps(energy_list)
+        try:
+            client_socket.send((json_data + "\n").encode())
+            logger.info(str(datetime.now()) + " Send text to mobile Energy: " + energy_list)
+        except Exception as e:
+            logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
 
 def evaluate_device_status(predicted): #Ver 7 - Execute AI
     try:
@@ -458,16 +479,16 @@ automation_thread = Thread(target=manage_automation)
 fetch_devices_thread = Thread(target=fetch_devices_stat)
 database_thread = Thread(target=database_manage)
 plug_thread = Thread(target=read_plug)
-#ai_thread = Thread(target=evaluate_device_status)
+ai_thread = Thread(target=append_prediction)
 mobile_thread.start()
 automation_thread.start()
 fetch_devices_thread.start()
 database_thread.start()
 plug_thread.start()
-#ai_thread.start()
+ai_thread.start()
 mobile_thread.join()
 automation_thread.join()
 fetch_devices_thread.join()
 database_thread.join()
 plug_thread.join()
-#ai_thread.join()
+ai_thread.join()
