@@ -394,7 +394,7 @@ def append_prediction(): #Ver 7 - Predict for user to choose later and execution
         sleep(delay_ai)
 def evaluate_models(): #Run daily after midnight
     real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
-    total_real_runtime = ai.calculate_runtime(real_runtime_table)
+    total_real_runtime = ai.calculate_runtime_real(real_runtime_table)
     total_predict1_runtime = ai.calculate_runtime(AI_PREDICTED_1)
     total_predict2_runtime = ai.calculate_runtime(AI_PREDICTED_2)
     total_predict3_runtime = ai.calculate_runtime(AI_PREDICTED_3)

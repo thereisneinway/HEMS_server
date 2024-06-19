@@ -47,6 +47,23 @@ def calculate_runtime(runtime_table: []): #Hardcoded devices
 
     return output  # [{"Device_name": -- , "runtime": --},...]
 
+def calculate_runtime_real(runtime_table: []): #Hardcoded devices
+    devices = ["Shower", "FR", "FL", "AC", "Recirculation fan", "Floor lamp",
+               "Artificial fan"]
+    devices_andType = ["light_Shower", "light_FR", "light_FL", "plug_AC", "plug_Recirculation fan", "plug_Floor lamp",
+               "plug_Artificial fan"]
+    device_runtime = {device: 0 for device in devices}
+    for i in range(1, len(runtime_table)):
+        current_entry = runtime_table[i]
+        previous_entry = runtime_table[i - 1]
+        time_diff = (current_entry['timestamp'] - previous_entry['timestamp']).total_seconds() / 3600
+        for i in range(len(devices)):
+            if previous_entry[devices_andType[i]] == 1:
+                device_runtime[devices[i]] += time_diff
+    output = [{"Device_name": device, "runtime": runtime} for device, runtime in device_runtime.items()]
+
+    return output  # [{"Device_name": -- , "runtime": --},...]
+
 def calculate_device_average_power(device: dict):
     if device["Device_type"] == "light":
         return 100

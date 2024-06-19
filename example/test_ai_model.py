@@ -3,16 +3,6 @@ from datetime import datetime
 import time
 import intelligent as ai
 import database_instructions as da
-MySQL_connection_details = {
-    "HOST": "db-mysql-sgp1-38053-do-user-15940348-0.c.db.ondigitalocean.com",
-    "PORT": 25060,
-    "DATABASE_NAME": "defaultdb",
-    "TABLE_NAME": "test",
-    "ENERGY_TABLE_NAME": "energy_test",
-    "USERNAME": "doadmin",
-    "PASSWORD": "AVNS_Ph0KRopLI4DcuwpAU6x",
-    "CA_Path": "/ca-certificate.crt"
-}
 
 AI_PREDICTED_1 = []
 AI_PREDICTED_2 = []
