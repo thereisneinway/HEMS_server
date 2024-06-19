@@ -33,7 +33,7 @@ Socket_mobile_port = 29562
 Socket_plug_port = 12347
 # Delay settings
 delay_automation = 60
-delay_ai = 60
+delay_ai = 10
 delay_database = 60
 delay_fetch = 10
 # settings
@@ -47,6 +47,7 @@ AUTOMATION = []
 AI_PREDICTED_1 = []
 AI_PREDICTED_2 = []
 AI_PREDICTED_3 = []
+AI_CHANGED = {}
 # Debug log
 logging.basicConfig(stream=stdout, level=logging.INFO)
 logger = logging.getLogger('c')
@@ -285,6 +286,11 @@ def handle_mobile_client(client_socket):
                     del json_data["Domain"]
                     arg = json_data["arg"]
                     command_to_api(device_name, arg)
+                    try:
+                        if AI_CHANGED[device_name] == 1:
+                            AI_CHANGED[device_name] = 60
+                    except Exception as e:
+                        logger.error(str(datetime.now()) + "AI preventer can't change state to 60: " +str(e))
                 elif domain == "custom":
                     print("TO BE IMPLEMENTED")
             elif msg_type == "request_automation_list":
@@ -380,7 +386,7 @@ def database_manage():
 
 
 # AI function
-def append_prediction(): #Ver 7 - Predict for user to choose later and execution
+def append_prediction():
     evaluated_flag = 0
     while True:
         predicted = []
@@ -407,7 +413,9 @@ def append_prediction(): #Ver 7 - Predict for user to choose later and execution
         if now.hour == 1 and now.minute == 0:
             logger.debug(str(datetime.now()) + " Executing flag reset for evaluate_models")
             evaluated_flag = 0
+        count_ai_preventer()
         sleep(delay_ai)
+
 def evaluate_models(): #Run daily after midnight
     real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
     total_real_runtime = ai.calculate_runtime_real(real_runtime_table)
@@ -444,18 +452,30 @@ def push_energy_prediction_to_mobile(client_socket):
         except Exception as e:
             logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
 
-def evaluate_device_status(predicted): #Ver 7.1 - tested
+def evaluate_device_status(predicted):
     try:
         del predicted['timestamp']
         for key, value in predicted.items():
             device = next((sub for sub in DEVICES if sub['Device_name'] == key), None)
             current_value = device.get("Power")
-            if current_value != value and value == False:
+            executable = True
+            try:
+                if AI_CHANGED[key] > 0: executable = False
+            except:
+                pass
+            if current_value != value and value == False and executable:
                 command_to_api(key, {'Power': value})
+                AI_CHANGED[key] = 1
                 logger.info(str(datetime.now()) + " AI executed device " + key)
     except Exception as e:
         logger.error(str(datetime.now()) + " AI thread error: "+str(e))
 
+def count_ai_preventer():
+    for key, value in AI_CHANGED.items():
+        if value == 0:
+            del AI_CHANGED[key]
+        elif value > 0:
+            AI_CHANGED[key] -= 1
 
 # Receiving data from customize plug
 def read_plug():
