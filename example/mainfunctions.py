@@ -5,6 +5,7 @@ import json
 import logging
 from time import sleep
 from socket import socket, AF_INET, SOCK_STREAM, gethostname, gethostbyname
+from multiprocessing.pool import ThreadPool as Pool
 from threading import Thread
 from datetime import datetime
 from sys import stdout
@@ -34,8 +35,12 @@ Socket_plug_port = 12347
 delay_automation = 60
 delay_ai = 60
 delay_database = 60
-# AI settings
-ai_functionality = 0
+delay_fetch = 10
+# settings
+ai_functionality = -1
+fetch_thread_pool_size = 3
+# Detect mobile connection state
+mobile_is_connected = False
 # Declare global variable
 DEVICES = []
 AUTOMATION = []
@@ -206,16 +211,22 @@ def manage_automation():  # check automation condition periodically and run (per
 # Pull device status from Tuya
 def fetch_devices_stat():
     while True:
+        if not mobile_is_connected:
+            sleep(delay_fetch)
         try:
+            pool = Pool(fetch_thread_pool_size)
+            results = []
             for i in DEVICES:
-                if i["Domain"] == "tuya":
-                    ti.request(API_ENDPOINT, ACCESS_ID, ACCESS_KEY, i)  # can improve by call each device by each thread
+                result = pool.apply_async(ti.request, (API_ENDPOINT, ACCESS_ID, ACCESS_KEY, i,))
+                results.append(result)
+            [result.wait() for result in results]
         except Exception as e:
             logger.error(str(datetime.now()) + "fetch_devices_stat  " + " error: " + str(e))
 
 
 # Push message mobile application (when connected)
 def update_device_to_mobile(client_socket):
+    global mobile_is_connected
     for i in DEVICES:
         data = i.get("STATUS").copy()
         data["msg_type"] = "Device_update"
@@ -234,6 +245,7 @@ def update_device_to_mobile(client_socket):
         for i in DEVICES:
             if "close" in str(client_socket):
                 logger.warning(str(datetime.now()) + " update_device_to_mobile thread closing due to socket")
+                mobile_is_connected = False
                 break
             if diff_devices(i):
                 save_devices_to_file()
@@ -329,7 +341,6 @@ def handle_mobile_client(client_socket):
                 period = json_data["period"]
                 energy_history_dict = da.query_energy(MySQL_connection_details,period,datetime.now())
                 energy_history_dict["msg_type"] = "Energy_history"
-                print(energy_history_dict)
                 json_data = json.dumps(energy_history_dict)
                 client_socket.send((json_data + "\n").encode())
                 logger.info(str(datetime.now()) + " Send text to mobile energy history")
@@ -341,6 +352,7 @@ def handle_mobile_client(client_socket):
 
 # Handle incoming socket from mobile application
 def connect_to_mobile():
+    global mobile_is_connected
     server_socket = socket(AF_INET, SOCK_STREAM)
     server_socket.bind((Sockets_hostname, Socket_mobile_port))
     server_socket.listen(5)
@@ -348,6 +360,7 @@ def connect_to_mobile():
     while True:
         client_socket, addr = server_socket.accept()
         logger.info(str(datetime.now()) + ' Got app connection from ' + str(addr))
+        mobile_is_connected = True
         client_thread = Thread(target=handle_mobile_client, args=(client_socket,))
         value_thread = Thread(target=update_device_to_mobile, args=(client_socket,))
         client_thread.start()
@@ -359,7 +372,10 @@ def connect_to_mobile():
 # Append device status to Tuya
 def database_manage():
     while True:
-        da.append_to_database(MySQL_connection_details, DEVICES, datetime.now())
+        try:
+            da.append_to_database(MySQL_connection_details, DEVICES.copy(), datetime.now())
+        except Exception as e:
+            logger.error(str(datetime.now()) + " Database thread error: " + str(e))
         sleep(delay_database)
 
 
@@ -368,11 +384,11 @@ def append_prediction(): #Ver 7 - Predict for user to choose later and execution
     evaluated_flag = 0
     while True:
         predicted = []
-        predicted.append(ai.evaluate_with_model("model_decisionTree.pkl", DEVICES))
+        predicted.append(ai.evaluate_with_model("model_decisionTree.pkl", DEVICES.copy()))
         predicted[0]['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M:00')
-        predicted.append(ai.evaluate_with_model("model_randForest.pkl", DEVICES))
+        predicted.append(ai.evaluate_with_model("model_randForest.pkl", DEVICES.copy()))
         predicted[1]['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M:00')
-        predicted.append(ai.evaluate_with_model("model_LTSM.pkl", DEVICES))
+        predicted.append(ai.evaluate_with_model("model_LTSM.pkl", DEVICES.copy()))
         predicted[2]['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M:00')
         AI_PREDICTED_1.append(predicted[0])
         AI_PREDICTED_2.append(predicted[1])
@@ -399,13 +415,13 @@ def evaluate_models(): #Run daily after midnight
     total_predict2_runtime = ai.calculate_runtime(AI_PREDICTED_2)
     total_predict3_runtime = ai.calculate_runtime(AI_PREDICTED_3)
     total_real_consumption = ai.calculate_total_consumption(
-        ai.calculate_each_devices_consumption(total_real_runtime, DEVICES))
+        ai.calculate_each_devices_consumption(total_real_runtime, DEVICES.copy()))
     total_predict1_consumption = ai.calculate_total_consumption(
-        ai.calculate_each_devices_consumption(total_predict1_runtime, DEVICES))
+        ai.calculate_each_devices_consumption(total_predict1_runtime, DEVICES.copy()))
     total_predict2_consumption = ai.calculate_total_consumption(
-        ai.calculate_each_devices_consumption(total_predict2_runtime, DEVICES))
+        ai.calculate_each_devices_consumption(total_predict2_runtime, DEVICES.copy()))
     total_predict3_consumption = ai.calculate_total_consumption(
-        ai.calculate_each_devices_consumption(total_predict3_runtime, DEVICES))
+        ai.calculate_each_devices_consumption(total_predict3_runtime, DEVICES.copy()))
     logger.info(str(datetime.now()) +" Energy prediction of model 1: " + str(total_predict1_consumption))
     logger.info(str(datetime.now()) +" Energy prediction of model 2: " + str(total_predict2_consumption))
     logger.info(str(datetime.now()) +" Energy prediction of model 3: " + str(total_predict3_consumption))
@@ -475,19 +491,19 @@ load_devices_from_file()
 load_automation_from_file()
 mobile_thread = Thread(target=connect_to_mobile)
 automation_thread = Thread(target=manage_automation)
-#fetch_devices_thread = Thread(target=fetch_devices_stat)
-#database_thread = Thread(target=database_manage)
+fetch_devices_thread = Thread(target=fetch_devices_stat)
+database_thread = Thread(target=database_manage)
 plug_thread = Thread(target=read_plug)
 ai_thread = Thread(target=append_prediction)
 mobile_thread.start()
 automation_thread.start()
-#fetch_devices_thread.start()
-#database_thread.start()
+fetch_devices_thread.start()
+database_thread.start()
 plug_thread.start()
 ai_thread.start()
 mobile_thread.join()
 automation_thread.join()
-#fetch_devices_thread.join()
-#database_thread.join()
+fetch_devices_thread.join()
+database_thread.join()
 plug_thread.join()
 ai_thread.join()
