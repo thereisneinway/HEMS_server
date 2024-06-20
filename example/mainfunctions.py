@@ -20,7 +20,7 @@ MySQL_connection_details = {
     "HOST": "db-mysql-sgp1-38053-do-user-15940348-0.c.db.ondigitalocean.com",
     "PORT": 25060,
     "DATABASE_NAME": "defaultdb",
-    "TABLE_NAME": "test",
+    "TABLE_NAME": "main",
     "ENERGY_TABLE_NAME": "energy_test",
     "USERNAME": "doadmin",
     "PASSWORD": "",
@@ -33,11 +33,11 @@ Socket_mobile_port = 29562
 Socket_plug_port = 12347
 # Delay settings
 delay_automation = 60
-delay_ai = 10
+delay_ai = 60
 delay_database = 60
 delay_fetch = 10
 # settings
-ai_functionality = -1
+ai_functionality = 0
 fetch_thread_pool_size = 3
 # Detect mobile connection state
 mobile_is_connected = False
@@ -457,7 +457,7 @@ def evaluate_device_status(predicted):
         del predicted['timestamp']
         for key, value in predicted.items():
             device = next((sub for sub in DEVICES if sub['Device_name'] == key), None)
-            current_value = device.get("Power")
+            current_value = device.get("STATUS").get("Power")
             executable = True
             try:
                 if AI_CHANGED[key] > 0: executable = False
@@ -471,9 +471,9 @@ def evaluate_device_status(predicted):
         logger.error(str(datetime.now()) + " AI thread error: "+str(e))
 
 def count_ai_preventer():
-    for key, value in AI_CHANGED.items():
+    for key, value in list(AI_CHANGED.items()):
         if value == 0:
-            del AI_CHANGED[key]
+            del(AI_CHANGED[key])
         elif value > 0:
             AI_CHANGED[key] -= 1
 
