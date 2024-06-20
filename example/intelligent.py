@@ -1,10 +1,7 @@
-import json
 
 import pandas as pd
 import joblib
-from datetime import datetime, timedelta
-import time
-import mysql.connector
+from datetime import datetime   
 import database_instructions as da
 
 

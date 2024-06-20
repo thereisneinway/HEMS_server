@@ -37,7 +37,7 @@ delay_ai = 60
 delay_database = 60
 delay_fetch = 10
 # settings
-ai_functionality = 0
+ai_functionality = -1
 fetch_thread_pool_size = 3
 # Detect mobile connection state
 mobile_is_connected = False
@@ -350,6 +350,10 @@ def handle_mobile_client(client_socket):
                 json_data = json.dumps(energy_history_dict)
                 client_socket.send((json_data + "\n").encode())
                 logger.info(str(datetime.now()) + " Send text to mobile energy history")
+            elif msg_type == "request_energy_prediction_list":
+                push_energy_prediction_to_mobile(client_socket)
+            elif msg_type == "request_ai_functionality":
+                push_ai_stat_to_mobile(client_socket)
         except Exception as e:
             logger.error(str(datetime.now()) + " Handling mobile thread error: "+ str(e))
             client_socket.close()

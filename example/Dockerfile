@@ -1,11 +1,11 @@
-FROM python
+FROM python:3.11.2-slim-bullseye
 WORKDIR /app
 COPY . /app
-RUN pip install requests
-RUN pip install mysql-connector-python
-RUN pip install pandas
-RUN pip install joblib
-RUN pip install scikit-learn
+RUN pip install --no-cache-dir requests
+RUN pip install --no-cache-dir mysql-connector-python
+RUN pip install --no-cache-dir pandas
+RUN pip install --no-cache-dir joblib
+RUN pip install --no-cache-dir scikit-learn
 RUN apt-get update && apt-get install -y tzdata
 ENV TZ=Asia/Bangkok
 RUN dpkg-reconfigure -f noninteractive tzdata
