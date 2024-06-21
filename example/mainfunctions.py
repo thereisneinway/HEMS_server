@@ -271,9 +271,9 @@ def handle_mobile_client(client_socket):
     while True:
         try:
             request = client_socket.recv(1024).decode()
+            logger.info(str(datetime.now()) + " Received from mobile: " + str(request))
             json_data = json.loads(request)
             msg_type = ""
-            logger.info(str(datetime.now()) + " Received from mobile: " + str(json_data))
             try:
                 msg_type = json_data["type"]
             except KeyError:

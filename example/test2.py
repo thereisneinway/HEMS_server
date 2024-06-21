@@ -1,18 +1,7 @@
-from datetime import datetime
-import database_instructions as da
-import intelligent as ai
-MySQL_connection_details = {
-    "HOST": "db-mysql-sgp1-38053-do-user-15940348-0.c.db.ondigitalocean.com",
-    "PORT": 25060,
-    "DATABASE_NAME": "defaultdb",
-    "TABLE_NAME": "test",
-    "ENERGY_TABLE_NAME": "energy_test",
-    "USERNAME": "doadmin",
-    "PASSWORD": "AVNS_Ph0KRopLI4DcuwpAU6x",
-    "CA_Path": "/ca-certificate.crt"
-}
+import json
 
-real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
-print(real_runtime_table)
-total_real_runtime = ai.calculate_runtime_real(real_runtime_table)
-print(total_real_runtime)
+with open('energy_comparison_model.txt', 'w') as energy_file:
+    energy_file.write(json.dumps({"Model 1": 220,"Model 2": 230,"Model 3": 240,"Real": 300}))
+
+
+print(json.load(open("energy_comparison_model.txt")))
