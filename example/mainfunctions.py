@@ -452,7 +452,7 @@ def push_energy_prediction_to_mobile(client_socket):
         json_data = json.dumps(energy_list)
         try:
             client_socket.send((json_data + "\n").encode())
-            logger.info(str(datetime.now()) + " Send text to mobile Energy: " + energy_list)
+            logger.info(str(datetime.now()) + " Send text to mobile Energy: " + str(energy_list))
         except Exception as e:
             logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
 
