@@ -272,19 +272,19 @@ def handle_mobile_client(client_socket):
         try:
             request = client_socket.recv(1024).decode()
             logger.info(str(datetime.now()) + " Received from mobile: " + str(request))
-            json_data = json.loads(request)
+            json_data_rece = json.loads(request)
             msg_type = ""
             try:
-                msg_type = json_data["type"]
+                msg_type = json_data_rece["type"]
             except KeyError:
-                logger.error(str(datetime.now()) + " Received from mobile has no type argument: " + str(json_data))
+                logger.error(str(datetime.now()) + " Received from mobile has no type argument: " + str(json_data_rece))
             if msg_type == "command":
-                domain = json_data["Domain"]
+                domain = json_data_rece["Domain"]
                 if domain == "tuya":
-                    device_name = json_data["Device_name"]
-                    del json_data["Device_name"]
-                    del json_data["Domain"]
-                    arg = json_data["arg"]
+                    device_name = json_data_rece["Device_name"]
+                    del json_data_rece["Device_name"]
+                    del json_data_rece["Domain"]
+                    arg = json_data_rece["arg"]
                     command_to_api(device_name, arg)
                     try:
                         if AI_CHANGED[device_name] == 1:
@@ -296,16 +296,16 @@ def handle_mobile_client(client_socket):
             elif msg_type == "request_automation_list":
                 push_automation_info_to_mobile(client_socket)
             elif msg_type == "set_automation":
-                command_type = json_data["set_type"]
+                command_type = json_data_rece["set_type"]
                 if command_type == "add":
-                    del json_data["set_type"]
-                    del json_data["type"]
+                    del json_data_rece["set_type"]
+                    del json_data_rece["type"]
                     do = True
                     for i in AUTOMATION:
-                        if i.get("Name") == json_data["Name"]:
+                        if i.get("Name") == json_data_rece["Name"]:
                             do = False
                     if do:
-                        if add_automation(json_data):
+                        if add_automation(json_data_rece):
                             client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Add success'}" + "\n").encode())
                             logger.info(str(datetime.now()) + " Send text to mobile automation: Add success")
                         else:
@@ -315,15 +315,15 @@ def handle_mobile_client(client_socket):
                         client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Add failed, Duplicated'}" + "\n").encode())
                         logger.info(str(datetime.now()) + " Send text to mobile automation: Add failed, Duplicated")
                 elif command_type == "set":
-                    del json_data["set_type"]
-                    del json_data["type"]
-                    exist = True
+                    del json_data_rece["set_type"]
+                    del json_data_rece["type"]
+                    exist = False
                     for i in AUTOMATION:
-                        if i.get("Name") == json_data["Name"]:
-                            exist = False
+                        if i.get("Name") == json_data_rece["Name"]:
+                            exist = True
                     if exist:
-                        if remove_automation(json_data["Name"]):
-                            if add_automation(json_data):
+                        if remove_automation(json_data_rece["Name"]):
+                            if add_automation(json_data_rece):
                                 client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Set success'}" + "\n").encode())
                                 logger.info(str(datetime.now()) + " Send text to mobile automation: Set success")
                         else:
@@ -333,7 +333,7 @@ def handle_mobile_client(client_socket):
                         client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Set failed, Does not exist'}" + "\n").encode())
                         logger.info(str(datetime.now()) + " Send text to mobile automation: Set failed, Does not exist")
                 elif command_type == "remove":
-                    if remove_automation(json_data["Name"]):
+                    if remove_automation(json_data_rece["Name"]):
                         client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Remove success'}" + "\n").encode())
                         logger.info(str(datetime.now()) + " Send text to mobile automation: Remove success")
                     else:
@@ -341,14 +341,14 @@ def handle_mobile_client(client_socket):
                         logger.info(str(datetime.now()) + " Send text to mobile automation: Remove failed")
             elif msg_type == "set_ai_functionality":
                 global ai_functionality
-                ai_functionality = json_data["set"]
+                ai_functionality = json_data_rece["set"]
                 push_ai_stat_to_mobile(client_socket)
             elif msg_type == "request_energy_history_list":
-                period = json_data["period"]
+                period = json_data_rece["period"]
                 energy_history_dict = da.query_energy(MySQL_connection_details,period,datetime.now())
                 energy_history_dict["msg_type"] = "Energy_history"
-                json_data = json.dumps(energy_history_dict)
-                client_socket.send((json_data + "\n").encode())
+                json_data_rece = json.dumps(energy_history_dict)
+                client_socket.send((json_data_rece + "\n").encode())
                 logger.info(str(datetime.now()) + " Send text to mobile energy history")
             elif msg_type == "request_energy_prediction_list":
                 push_energy_prediction_to_mobile(client_socket)
@@ -438,7 +438,7 @@ def evaluate_models(): #Run daily after midnight
     logger.info(str(datetime.now()) +" Energy prediction of model 2: " + str(total_predict2_consumption))
     logger.info(str(datetime.now()) +" Energy prediction of model 3: " + str(total_predict3_consumption))
     logger.info(str(datetime.now()) +" Energy calculation of real s: " + str(total_real_consumption))
-    energy = {"Model 1": total_predict1_consumption,"Model 2": total_predict2_consumption,"Model 3": total_predict3_consumption,"Real": total_real_consumption}
+    energy = {"Actual": total_real_consumption,"Model 1": total_predict1_consumption,"Model 2": total_predict2_consumption,"Model 3": total_predict3_consumption}
     save_energy_prediction_to_file(energy)
     #Flush prediction after evaluate
     AI_PREDICTED_1.clear()
