@@ -136,6 +136,10 @@ def remove_automation(name: str):  # remove an automation (run by handle_mobile_
             AUTOMATION.remove(i)
     return save_automation_to_file()
 
+def remove_device(device_name: str):
+    for i in DEVICES:
+        if i.get("Device_name") == device_name:
+            DEVICES.remove(i)
 
 def push_automation_info_to_mobile(client_socket):  # send list of automations (run by handle_mobile_client)
     load_automation_from_file()
@@ -293,6 +297,8 @@ def handle_mobile_client(client_socket):
                         logger.error(str(datetime.now()) + "AI preventer can't change state to 60: " +str(e))
                 elif domain == "custom":
                     print("TO BE IMPLEMENTED")
+            elif msg_type == "remove_device":
+                remove_device(json_data_rece["Device_name"])
             elif msg_type == "request_automation_list":
                 push_automation_info_to_mobile(client_socket)
             elif msg_type == "set_automation":
@@ -408,8 +414,11 @@ def append_prediction():
             logger.debug(str(datetime.now()) + " Executing evaluate_device_status")
             evaluate_device_status(predicted[ai_functionality])
         if now.minute == 0:
-            da.calculate_energy(MySQL_connection_details, datetime.now())
-            logger.info(str(datetime.now()) + " Calculated energy and append to table")
+            try:
+                da.calculate_energy(MySQL_connection_details, datetime.now())
+                logger.info(str(datetime.now()) + " Calculated energy and append to table")
+            except Exception as e:
+                logger.error(str(datetime.now()) + " Calculated energy failed: " + str(e))
         if now.hour == 0 and now.minute == 0 and evaluated_flag == 0:
             logger.debug(str(datetime.now()) + " Executing evaluate_models")
             evaluate_models()
