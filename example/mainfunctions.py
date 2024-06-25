@@ -101,10 +101,13 @@ def load_automation_from_file():
     for i in AUTOMATION:
         logger.info(str(datetime.now()) + " Automation loaded: " + i.get("Name"))
 
+
 # Handling ENERGY file
 def save_energy_prediction_to_file(energy: dict):
     with open('energy_comparison_model.txt', 'w') as energy_file:
         energy_file.write(json.dumps(energy))
+
+
 def load_energy_prediction_from_file():
     try:
         return json.load(open("energy_comparison_model.txt"))
@@ -136,10 +139,12 @@ def remove_automation(name: str):  # remove an automation (run by handle_mobile_
             AUTOMATION.remove(i)
     return save_automation_to_file()
 
+
 def remove_device(device_name: str):
     for i in DEVICES:
         if i.get("Device_name") == device_name:
             DEVICES.remove(i)
+
 
 def push_automation_info_to_mobile(client_socket):  # send list of automations (run by handle_mobile_client)
     load_automation_from_file()
@@ -152,16 +157,16 @@ def push_automation_info_to_mobile(client_socket):  # send list of automations (
                 client_socket.send((json_data + "\n").encode())
                 logger.info(str(datetime.now()) + " Send text to mobile Automation: " + i["Name"])
             except Exception as e:
-                logger.error(str(datetime.now()) + " Error sending text to mobile Automation: "+str(e))
+                logger.error(str(datetime.now()) + " Error sending text to mobile Automation: " + str(e))
                 break
     else:
         data = {"msg_type": "Automation_update"}
         json_data = json.dumps(data)
         try:
             client_socket.send((json_data + "\n").encode())
-            logger.info(str(datetime.now()) + " Automation text send to mobile: None" )
+            logger.info(str(datetime.now()) + " Automation text send to mobile: None")
         except Exception as e:
-            logger.error(str(datetime.now()) + " Automation error sending text to mobile: "+str(e))
+            logger.error(str(datetime.now()) + " Automation error sending text to mobile: " + str(e))
 
 
 def push_ai_stat_to_mobile(client_socket):
@@ -171,7 +176,7 @@ def push_ai_stat_to_mobile(client_socket):
         client_socket.send((json_data + "\n").encode())
         logger.info(str(datetime.now()) + " Send text to mobile AI set: " + str(ai_functionality))
     except Exception as e:
-        logger.error(str(datetime.now()) + " Error sending text to mobile AI set: "+ str(e))
+        logger.error(str(datetime.now()) + " Error sending text to mobile AI set: " + str(e))
 
 
 # Main functions
@@ -242,7 +247,7 @@ def update_device_to_mobile(client_socket):
             client_socket.send((json_data + "\n").encode())
             logger.info(str(datetime.now()) + " Send initial text to mobile device: " + data["Device_name"])
         except Exception as e:
-            logger.error(str(datetime.now()) + " Error sending initial text to mobile: "+str(e))
+            logger.error(str(datetime.now()) + " Error sending initial text to mobile: " + str(e))
             break
     push_automation_info_to_mobile(client_socket)
     push_ai_stat_to_mobile(client_socket)
@@ -263,7 +268,7 @@ def update_device_to_mobile(client_socket):
                     client_socket.send((json_data + "\n").encode())
                     logger.info(str(datetime.now()) + " Send text to mobile device: " + data["Device_name"])
                 except Exception as e:
-                    logger.error(str(datetime.now()) + " Error sending text to mobile: "+str(e))
+                    logger.error(str(datetime.now()) + " Error sending text to mobile: " + str(e))
                     break
         else:
             continue
@@ -294,7 +299,7 @@ def handle_mobile_client(client_socket):
                         if AI_CHANGED[device_name] == 1:
                             AI_CHANGED[device_name] = 60
                     except Exception as e:
-                        logger.error(str(datetime.now()) + "AI preventer can't change state to 60: " +str(e))
+                        logger.error(str(datetime.now()) + "AI preventer can't change state to 60: " + str(e))
                 elif domain == "custom":
                     print("TO BE IMPLEMENTED")
             elif msg_type == "remove_device":
@@ -312,13 +317,16 @@ def handle_mobile_client(client_socket):
                             do = False
                     if do:
                         if add_automation(json_data_rece):
-                            client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Add success'}" + "\n").encode())
+                            client_socket.send((
+                                                       "{'msg_type': 'Automation_instruction_response', 'status': 'Add success'}" + "\n").encode())
                             logger.info(str(datetime.now()) + " Send text to mobile automation: Add success")
                         else:
-                            client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Add failed'}" + "\n").encode())
+                            client_socket.send((
+                                                       "{'msg_type': 'Automation_instruction_response', 'status': 'Add failed'}" + "\n").encode())
                             logger.info(str(datetime.now()) + " Send text to mobile automation: Add failed")
                     else:
-                        client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Add failed, Duplicated'}" + "\n").encode())
+                        client_socket.send((
+                                                   "{'msg_type': 'Automation_instruction_response', 'status': 'Add failed, Duplicated'}" + "\n").encode())
                         logger.info(str(datetime.now()) + " Send text to mobile automation: Add failed, Duplicated")
                 elif command_type == "set":
                     del json_data_rece["set_type"]
@@ -330,20 +338,25 @@ def handle_mobile_client(client_socket):
                     if exist:
                         if remove_automation(json_data_rece["Name"]):
                             if add_automation(json_data_rece):
-                                client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Set success'}" + "\n").encode())
+                                client_socket.send((
+                                                           "{'msg_type': 'Automation_instruction_response', 'status': 'Set success'}" + "\n").encode())
                                 logger.info(str(datetime.now()) + " Send text to mobile automation: Set success")
                         else:
-                            client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Set failed'}" + "\n").encode())
+                            client_socket.send((
+                                                       "{'msg_type': 'Automation_instruction_response', 'status': 'Set failed'}" + "\n").encode())
                             logger.info(str(datetime.now()) + " Send text to mobile automation: Set failed")
                     else:
-                        client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Set failed, Does not exist'}" + "\n").encode())
+                        client_socket.send((
+                                                   "{'msg_type': 'Automation_instruction_response', 'status': 'Set failed, Does not exist'}" + "\n").encode())
                         logger.info(str(datetime.now()) + " Send text to mobile automation: Set failed, Does not exist")
                 elif command_type == "remove":
                     if remove_automation(json_data_rece["Name"]):
-                        client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Remove success'}" + "\n").encode())
+                        client_socket.send((
+                                                   "{'msg_type': 'Automation_instruction_response', 'status': 'Remove success'}" + "\n").encode())
                         logger.info(str(datetime.now()) + " Send text to mobile automation: Remove success")
                     else:
-                        client_socket.send(("{'msg_type': 'Automation_instruction_response', 'status': 'Remove failed'}" + "\n").encode())
+                        client_socket.send((
+                                                   "{'msg_type': 'Automation_instruction_response', 'status': 'Remove failed'}" + "\n").encode())
                         logger.info(str(datetime.now()) + " Send text to mobile automation: Remove failed")
             elif msg_type == "set_ai_functionality":
                 global ai_functionality
@@ -351,7 +364,7 @@ def handle_mobile_client(client_socket):
                 push_ai_stat_to_mobile(client_socket)
             elif msg_type == "request_energy_history_list":
                 period = json_data_rece["period"]
-                energy_history_dict = da.query_energy(MySQL_connection_details,period,datetime.now())
+                energy_history_dict = da.query_energy(MySQL_connection_details, period, datetime.now())
                 energy_history_dict["msg_type"] = "Energy_history"
                 json_data_rece = json.dumps(energy_history_dict)
                 client_socket.send((json_data_rece + "\n").encode())
@@ -361,7 +374,7 @@ def handle_mobile_client(client_socket):
             elif msg_type == "request_ai_functionality":
                 push_ai_stat_to_mobile(client_socket)
         except Exception as e:
-            logger.error(str(datetime.now()) + " Handling mobile thread error: "+ str(e))
+            logger.error(str(datetime.now()) + " Handling mobile thread error: " + str(e))
             client_socket.close()
             break
 
@@ -379,10 +392,60 @@ def connect_to_mobile():
         mobile_is_connected = True
         client_thread = Thread(target=handle_mobile_client, args=(client_socket,))
         value_thread = Thread(target=update_device_to_mobile, args=(client_socket,))
+        direct_command_thread = Thread(target=handle_direct_command, args=(client_socket,))
         client_thread.start()
         value_thread.start()
+        direct_command_thread.start()
         client_thread.join()
         value_thread.join()
+        direct_command_thread.join()
+
+
+def handle_direct_command(client_socket):
+    while not "close" in str(client_socket):
+        command = input("Enter command:")
+        if command == "stop_socket":
+            client_socket.close()
+        elif command == "cat_energy":
+            print(load_energy_prediction_from_file())
+        elif command == "cat_AI_CHANGED":
+            print(str(AI_CHANGED))
+        elif command == "cat_DEVICES":
+            print(str(DEVICES))
+        elif command == "cat_AUTOMATION":
+            print(str(AUTOMATION))
+        elif command == "cat_AI_PREDICTED_1":
+            print(str(AI_PREDICTED_1))
+        elif command == "cat_AI_PREDICTED_2":
+            print(str(AI_PREDICTED_2))
+        elif command == "cat_AI_PREDICTED_3":
+            print(str(AI_PREDICTED_3))
+        elif command == "cat_settings":
+            print("Settings: \n     Delay for Automation:" + str(delay_automation) + "\n     AI functionality:" + str(
+                ai_functionality) + "\n     Delay for AI:" + str(
+                delay_ai) + "\n     Delay for Fetch:" + str(
+                delay_fetch) + "\n     Delay for Database:" + str(
+                delay_database) + "\n     Database site: " + MySQL_connection_details.get(
+                "HOST") + "\n     Fetch thread pool no: " + str(fetch_thread_pool_size))
+        elif command.startswith("set_"):
+            variable_map = {
+                "delay_automation": "delay_automation",
+                "delay_ai": "delay_ai",
+                "delay_fetch": "delay_fetch",
+                "delay_database": "delay_database",
+                "ai_functionality": "ai_functionality",
+                "fetch_thread_pool_size": "fetch_thread_pool_size"
+            }
+            try:
+                prefix, value = command.split("=")
+                prefix = prefix[4:]
+                if prefix in variable_map:
+                    globals()[variable_map[prefix]] = int(value)
+                    print(f"Set {variable_map[prefix]} to {value}")
+                else:
+                    print(f"Error: Unknown variable '{prefix}'")
+            except ValueError:
+                print("Error: Command format is incorrect.")
 
 
 # Append device status to Tuya
@@ -399,8 +462,7 @@ def database_manage():
 def append_prediction():
     evaluated_flag = 0
     while True:
-        predicted = []
-        predicted.append(ai.evaluate_with_model("model_decisionTree.pkl", DEVICES.copy()))
+        predicted = [ai.evaluate_with_model("model_decisionTree.pkl", DEVICES.copy())]
         predicted[0]['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M:00')
         predicted.append(ai.evaluate_with_model("model_randForest.pkl", DEVICES.copy()))
         predicted[1]['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M:00')
@@ -429,7 +491,8 @@ def append_prediction():
         count_ai_preventer()
         sleep(delay_ai)
 
-def evaluate_models(): #Run daily after midnight
+
+def evaluate_models():  # Run daily after midnight
     real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
     total_real_runtime = ai.calculate_runtime_real(real_runtime_table)
     total_predict1_runtime = ai.calculate_runtime(AI_PREDICTED_1)
@@ -443,16 +506,18 @@ def evaluate_models(): #Run daily after midnight
         ai.calculate_each_devices_consumption(total_predict2_runtime, DEVICES.copy()))
     total_predict3_consumption = ai.calculate_total_consumption(
         ai.calculate_each_devices_consumption(total_predict3_runtime, DEVICES.copy()))
-    logger.info(str(datetime.now()) +" Energy prediction of model 1: " + str(total_predict1_consumption))
-    logger.info(str(datetime.now()) +" Energy prediction of model 2: " + str(total_predict2_consumption))
-    logger.info(str(datetime.now()) +" Energy prediction of model 3: " + str(total_predict3_consumption))
-    logger.info(str(datetime.now()) +" Energy calculation of real s: " + str(total_real_consumption))
-    energy = {"Actual": total_real_consumption,"Model 1": total_predict1_consumption,"Model 2": total_predict2_consumption,"Model 3": total_predict3_consumption}
+    logger.info(str(datetime.now()) + " Energy prediction of model 1: " + str(total_predict1_consumption))
+    logger.info(str(datetime.now()) + " Energy prediction of model 2: " + str(total_predict2_consumption))
+    logger.info(str(datetime.now()) + " Energy prediction of model 3: " + str(total_predict3_consumption))
+    logger.info(str(datetime.now()) + " Energy calculation of real s: " + str(total_real_consumption))
+    energy = {"Actual": total_real_consumption, "Model 1": total_predict1_consumption,
+              "Model 2": total_predict2_consumption, "Model 3": total_predict3_consumption}
     save_energy_prediction_to_file(energy)
-    #Flush prediction after evaluate
+    # Flush prediction after evaluate
     AI_PREDICTED_1.clear()
     AI_PREDICTED_2.clear()
     AI_PREDICTED_3.clear()
+
 
 def push_energy_prediction_to_mobile(client_socket):
     energy_list = load_energy_prediction_from_file()
@@ -465,6 +530,7 @@ def push_energy_prediction_to_mobile(client_socket):
         except Exception as e:
             logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
 
+
 def evaluate_device_status(predicted):
     try:
         del predicted['timestamp']
@@ -476,19 +542,21 @@ def evaluate_device_status(predicted):
                 if AI_CHANGED[key] > 0: executable = False
             except:
                 pass
-            if current_value != value and value == False and executable:
+            if current_value != value and value is False and executable:
                 command_to_api(key, {'Power': value})
                 AI_CHANGED[key] = 1
                 logger.info(str(datetime.now()) + " AI executed device " + key)
     except Exception as e:
-        logger.error(str(datetime.now()) + " AI thread error: "+str(e))
+        logger.error(str(datetime.now()) + " AI thread error: " + str(e))
+
 
 def count_ai_preventer():
     for key, value in list(AI_CHANGED.items()):
         if value == 0:
-            del(AI_CHANGED[key])
+            del (AI_CHANGED[key])
         elif value > 0:
             AI_CHANGED[key] -= 1
+
 
 # Receiving data from customize plug
 def read_plug():
@@ -518,25 +586,29 @@ def read_plug():
 
 logger.info("Settings: \n     Delay for Automation:" + str(delay_automation) + "\n     AI functionality:" + str(
     ai_functionality) + "\n     Delay for AI:" + str(
-    delay_ai) + "\n     Delay for Database:" + str(
-    delay_database) + "\n     Database site: " + MySQL_connection_details.get("HOST"))
+    delay_ai) + "\n     Delay for Fetch:" + str(
+    delay_fetch) + "\n     Delay for Database:" + str(
+    delay_database) + "\n     Database site: " + MySQL_connection_details.get(
+    "HOST") + "\n     Fetch thread pool no: " + str(fetch_thread_pool_size))
 load_devices_from_file()
 load_automation_from_file()
 mobile_thread = Thread(target=connect_to_mobile)
-automation_thread = Thread(target=manage_automation)
-fetch_devices_thread = Thread(target=fetch_devices_stat)
-database_thread = Thread(target=database_manage)
+# automation_thread = Thread(target=manage_automation)
+# fetch_devices_thread = Thread(target=fetch_devices_stat)
+# database_thread = Thread(target=database_manage)
 plug_thread = Thread(target=read_plug)
-ai_thread = Thread(target=append_prediction)
+# ai_thread = Thread(target=append_prediction)
 mobile_thread.start()
-automation_thread.start()
-fetch_devices_thread.start()
-database_thread.start()
+# automation_thread.start()
+# fetch_devices_thread.start()
+# database_thread.start()
 plug_thread.start()
-ai_thread.start()
+# ai_thread.start()
 mobile_thread.join()
-automation_thread.join()
-fetch_devices_thread.join()
-database_thread.join()
+# automation_thread.join()
+# fetch_devices_thread.join()
+# database_thread.join()
 plug_thread.join()
-ai_thread.join()
+# ai_thread.join()
+while True:
+    k = input("Enter key: ")

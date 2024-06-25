@@ -3,8 +3,6 @@ import mysql.connector
 import time
 
 
-
-
 # Log to database at once
 def create_table(cursor, table_name: str):
     query = "CREATE TABLE " + table_name + " (timestamp datetime NOT NULL, PRIMARY KEY (timestamp))"
@@ -207,8 +205,10 @@ def query_energy(MySQL_connection_details: dict, period: str, current_timestamp:
                     """
             cursor.execute(query, (start_time, end_time))
             result = cursor.fetchone()[0]
-            if result: value[start_time.strftime('%Y-%m-%d %H:00:00')] = int(result)
-            else: value[start_time.strftime('%Y-%m-%d %H:00:00')] = 0
+            if result:
+                value[start_time.strftime('%Y-%m-%d %H:00:00')] = int(result)
+            else:
+                value[start_time.strftime('%Y-%m-%d %H:00:00')] = 0
             end_time = start_time
             start_time = start_time - timedelta(hours=1)
     elif period == 'day':
@@ -222,8 +222,10 @@ def query_energy(MySQL_connection_details: dict, period: str, current_timestamp:
                     """
             cursor.execute(query, (start_time, end_time))
             result = cursor.fetchone()[0]
-            if result: value[start_time.strftime('%Y-%m-%d')] = int(result)
-            else: value[start_time.strftime('%Y-%m-%d')] = 0
+            if result:
+                value[start_time.strftime('%Y-%m-%d')] = int(result)
+            else:
+                value[start_time.strftime('%Y-%m-%d')] = 0
             end_time = start_time
             start_time = start_time - timedelta(days=1)
     elif period == 'week':
@@ -238,8 +240,10 @@ def query_energy(MySQL_connection_details: dict, period: str, current_timestamp:
                     """
             cursor.execute(query, (start_time, end_time))
             result = cursor.fetchone()[0]
-            if result: value[start_time.strftime('%Y-%m-%d')] = int(result)
-            else: value[start_time.strftime('%Y-%m-%d')] = 0
+            if result:
+                value[start_time.strftime('%Y-%m-%d')] = int(result)
+            else:
+                value[start_time.strftime('%Y-%m-%d')] = 0
             end_time = start_time
             start_time = start_time - timedelta(weeks=1)
     else:
@@ -250,8 +254,9 @@ def query_energy(MySQL_connection_details: dict, period: str, current_timestamp:
 
     return value
 
-#NEW FUNCTION
-def query_database_for_calculate_runtime(MySQL_connection_details: dict,current_timestamp: time):
+
+# NEW FUNCTION
+def query_database_for_calculate_runtime(MySQL_connection_details: dict, current_timestamp: time):
     MySQL = mysql.connector.connect(host=MySQL_connection_details.get("HOST"),
                                     port=MySQL_connection_details.get("PORT"),
                                     database=MySQL_connection_details.get("DATABASE_NAME"),
