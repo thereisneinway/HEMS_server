@@ -1,5 +1,3 @@
-import queue
-
 import tuya_instructions as ti
 import database_instructions as da
 import intelligent as ai
@@ -10,7 +8,7 @@ from socket import socket, AF_INET, SOCK_STREAM, gethostname, gethostbyname
 from multiprocessing.pool import ThreadPool as Pool
 from threading import Thread
 from datetime import datetime
-from sys import stdout, stdin
+from sys import stdout
 
 # ##############################Spec define###############################
 # Tuya API Information
@@ -403,74 +401,61 @@ def connect_to_mobile():
         client_socket, addr = server_socket.accept()
         logger.info(str(datetime.now()) + ' Got app connection from ' + str(addr))
         mobile_is_connected = True
-        input_queue = queue.Queue()
         client_thread = Thread(target=handle_mobile_client, args=(client_socket,))
         value_thread = Thread(target=update_device_to_mobile, args=(client_socket,))
-        direct_command_thread = Thread(target=handle_direct_command, args=(client_socket,input_queue,))
-        input_thread = Thread(target=input_fn, args=(input_queue, client_socket,))
-        input_thread.start()
         client_thread.start()
         value_thread.start()
-        direct_command_thread.daemon = True
-        direct_command_thread.start()
         client_thread.join()
         value_thread.join()
-        input_thread.join()
 
 
-def handle_direct_command(client_socket,input_queue):
-    while not "close" in str(client_socket):
-        try:
-            command = input_queue.get(timeout=1)
-            if command == "stop_socket":
-                client_socket.close()
-            elif command == "cat_energy":
-                print(load_energy_prediction_from_file())
-            elif command == "cat_AI_CHANGED":
-                print(str(AI_CHANGED))
-            elif command == "cat_DEVICES":
-                print(str(DEVICES))
-            elif command == "cat_AUTOMATION":
-                print(str(AUTOMATION))
-            elif command == "cat_AI_PREDICTED_1":
-                print(str(AI_PREDICTED_1))
-            elif command == "cat_AI_PREDICTED_2":
-                print(str(AI_PREDICTED_2))
-            elif command == "cat_AI_PREDICTED_3":
-                print(str(AI_PREDICTED_3))
-            elif command == "cat_settings":
-                print("Settings: \n     Delay for Automation:" + str(delay_automation) + "\n     AI functionality:" + str(
-                    ai_functionality) + "\n     Delay for AI:" + str(
-                    delay_ai) + "\n     Delay for Fetch:" + str(
-                    delay_fetch) + "\n     Delay for Database:" + str(
-                    delay_database) + "\n     Database site: " + MySQL_connection_details.get(
-                    "HOST") + "\n     Fetch thread pool no: " + str(fetch_thread_pool_size))
-            elif command.startswith("set_"):
-                variable_map = {
-                    "delay_automation": "delay_automation",
-                    "delay_ai": "delay_ai",
-                    "delay_fetch": "delay_fetch",
-                    "delay_database": "delay_database",
-                    "ai_functionality": "ai_functionality",
-                    "fetch_thread_pool_size": "fetch_thread_pool_size"
-                }
-                try:
-                    prefix, value = command.split("=")
-                    prefix = prefix[4:]
-                    if prefix in variable_map:
-                        globals()[variable_map[prefix]] = int(value)
-                        print(f"Set {variable_map[prefix]} to {value}")
-                    else:
-                        print(f"Error: Unknown variable '{prefix}'")
-                except ValueError:
-                    print("Error: Command format is incorrect.")
-        except queue.Empty:
-            pass
+def handle_direct_command():
+    while True:
+        global mobile_is_connected
+        command = input()
+        if command == "stop_socket":
+            mobile_is_connected = False
+        elif command == "cat_energy":
+            print(load_energy_prediction_from_file())
+        elif command == "cat_AI_CHANGED":
+            print(str(AI_CHANGED))
+        elif command == "cat_DEVICES":
+            print(str(DEVICES))
+        elif command == "cat_AUTOMATION":
+            print(str(AUTOMATION))
+        elif command == "cat_AI_PREDICTED_1":
+            print(str(AI_PREDICTED_1))
+        elif command == "cat_AI_PREDICTED_2":
+            print(str(AI_PREDICTED_2))
+        elif command == "cat_AI_PREDICTED_3":
+            print(str(AI_PREDICTED_3))
+        elif command == "cat_settings":
+            print("Settings: \n     Delay for Automation:" + str(delay_automation) + "\n     AI functionality:" + str(
+                ai_functionality) + "\n     Delay for AI:" + str(
+                delay_ai) + "\n     Delay for Fetch:" + str(
+                delay_fetch) + "\n     Delay for Database:" + str(
+                delay_database) + "\n     Database site: " + MySQL_connection_details.get(
+                "HOST") + "\n     Fetch thread pool no: " + str(fetch_thread_pool_size))
+        elif command.startswith("set_"):
+            variable_map = {
+                "delay_automation": "delay_automation",
+                "delay_ai": "delay_ai",
+                "delay_fetch": "delay_fetch",
+                "delay_database": "delay_database",
+                "ai_functionality": "ai_functionality",
+                "fetch_thread_pool_size": "fetch_thread_pool_size"
+            }
+            try:
+                prefix, value = command.split("=")
+                prefix = prefix[4:]
+                if prefix in variable_map:
+                    globals()[variable_map[prefix]] = int(value)
+                    print(f"Set {variable_map[prefix]} to {value}")
+                else:
+                    print(f"Error: Unknown variable '{prefix}'")
+            except ValueError:
+                print("Error: Command format is incorrect.")
     sleep(0.1)
-def input_fn(input_queue, client_socket):
-    while not "close" in str(client_socket):
-        user_input = stdin.readline().strip()
-        input_queue.put(user_input)
 
 # Append device status to Tuya
 def database_manage():
@@ -517,31 +502,34 @@ def append_prediction():
 
 
 def evaluate_models():  # Run daily after midnight
-    real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
-    total_real_runtime = ai.calculate_runtime_real(real_runtime_table)
-    total_predict1_runtime = ai.calculate_runtime(AI_PREDICTED_1)
-    total_predict2_runtime = ai.calculate_runtime(AI_PREDICTED_2)
-    total_predict3_runtime = ai.calculate_runtime(AI_PREDICTED_3)
-    total_real_consumption = ai.calculate_total_consumption(
-        ai.calculate_each_devices_consumption(total_real_runtime, DEVICES.copy()))
-    total_predict1_consumption = ai.calculate_total_consumption(
-        ai.calculate_each_devices_consumption(total_predict1_runtime, DEVICES.copy()))
-    total_predict2_consumption = ai.calculate_total_consumption(
-        ai.calculate_each_devices_consumption(total_predict2_runtime, DEVICES.copy()))
-    total_predict3_consumption = ai.calculate_total_consumption(
-        ai.calculate_each_devices_consumption(total_predict3_runtime, DEVICES.copy()))
-    logger.info(str(datetime.now()) + " Energy prediction of model 1: " + str(total_predict1_consumption))
-    logger.info(str(datetime.now()) + " Energy prediction of model 2: " + str(total_predict2_consumption))
-    logger.info(str(datetime.now()) + " Energy prediction of model 3: " + str(total_predict3_consumption))
-    logger.info(str(datetime.now()) + " Energy calculation of real s: " + str(total_real_consumption))
-    energy = {"Actual": total_real_consumption, "Model 1": total_predict1_consumption,
-              "Model 2": total_predict2_consumption, "Model 3": total_predict3_consumption}
-    save_energy_prediction_to_file(energy)
-    # Flush prediction after evaluate
-    save_ai_temp_to_file()
-    AI_PREDICTED_1.clear()
-    AI_PREDICTED_2.clear()
-    AI_PREDICTED_3.clear()
+    try:
+        real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
+        total_real_runtime = ai.calculate_runtime_real(real_runtime_table)
+        total_predict1_runtime = ai.calculate_runtime(AI_PREDICTED_1)
+        total_predict2_runtime = ai.calculate_runtime(AI_PREDICTED_2)
+        total_predict3_runtime = ai.calculate_runtime(AI_PREDICTED_3)
+        total_real_consumption = ai.calculate_total_consumption(
+            ai.calculate_each_devices_consumption(total_real_runtime, DEVICES.copy()))
+        total_predict1_consumption = ai.calculate_total_consumption(
+            ai.calculate_each_devices_consumption(total_predict1_runtime, DEVICES.copy()))
+        total_predict2_consumption = ai.calculate_total_consumption(
+            ai.calculate_each_devices_consumption(total_predict2_runtime, DEVICES.copy()))
+        total_predict3_consumption = ai.calculate_total_consumption(
+            ai.calculate_each_devices_consumption(total_predict3_runtime, DEVICES.copy()))
+        logger.info(str(datetime.now()) + " Energy prediction of model 1: " + str(total_predict1_consumption))
+        logger.info(str(datetime.now()) + " Energy prediction of model 2: " + str(total_predict2_consumption))
+        logger.info(str(datetime.now()) + " Energy prediction of model 3: " + str(total_predict3_consumption))
+        logger.info(str(datetime.now()) + " Energy calculation of real s: " + str(total_real_consumption))
+        energy = {"Actual": total_real_consumption, "Model 1": total_predict1_consumption,
+                  "Model 2": total_predict2_consumption, "Model 3": total_predict3_consumption}
+        save_energy_prediction_to_file(energy)
+        # Flush prediction after evaluate
+        save_ai_temp_to_file()
+        AI_PREDICTED_1.clear()
+        AI_PREDICTED_2.clear()
+        AI_PREDICTED_3.clear()
+    except Exception as e:
+        logger.error(str(datetime.now()) + " evaluate_models error: " + str(e))
 
 
 def push_energy_prediction_to_mobile(client_socket):
@@ -627,7 +615,7 @@ fetch_devices_thread = Thread(target=fetch_devices_stat)
 database_thread = Thread(target=database_manage)
 plug_thread = Thread(target=read_plug)
 ai_thread = Thread(target=append_prediction)
-
+direct_command_thread = Thread(target=handle_direct_command)
 mobile_thread.start()
 automation_thread.start()
 fetch_devices_thread.start()
@@ -640,3 +628,5 @@ fetch_devices_thread.join()
 database_thread.join()
 plug_thread.join()
 ai_thread.join()
+direct_command_thread.daemon = True
+direct_command_thread.start()
