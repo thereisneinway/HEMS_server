@@ -6,34 +6,14 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 import xgboost as xgb
 
-# Define the mapping from weekday name to number
-weekday_mapping = {
-    'Monday': 1,
-    'Tuesday': 2,
-    'Wednesday': 3,
-    'Thursday': 4,
-    'Friday': 5,
-    'Saturday': 6,
-    'Sunday': 7
-}
 
 # Load the CSV file into a DataFrame
-file_path = 'raw_data_stripped.csv'  # Replace with your file path
+file_path = 'processed_data.csv'  # Replace with your file path
 df = pd.read_csv(file_path)
 
-# Print column names to verify
-print("Columns in the DataFrame:", df.columns)
-
-# Convert the datetime column to datetime format
-df['timestamp'] = pd.to_datetime(df['timestamp'], format='%d-%m-%y %H:%M')
-
-# Extract day, hour, and minute from the datetime column
-df['day'] = df['timestamp'].dt.day_name().map(weekday_mapping)
-df['hh'] = df['timestamp'].dt.hour
-df['mm'] = df['timestamp'].dt.minute
 
 # Specify input and target columns
-input_columns = ['day', 'hh', 'mm', 'temp_Bedroom temp', 'temp_Outdoor temp', 'motion_Motion living room', 'light_environment', 'door_Door']
+input_columns = ['day', 'temp_Bedroom temp', 'temp_Outdoor temp', 'motion_Motion living room', 'light_environment', 'door_Door']
 target_columns = ['light_Shower', 'light_FR', 'light_FL', 'plug_AC', 'plug_Recirculation fan', 'plug_Floor lamp', 'plug_Artificial fan']
 
 # Check if columns exist in the DataFrame
@@ -54,11 +34,11 @@ def create_sequences(data, seq_length):
     return np.array(sequences), np.array(targets)
 
 # Create sequences of 3 days (3 days * 24 hours/day * 60 minutes/hour = 4320 minutes)
-seq_length =  60
+seq_length =  3*24*6
 X, y = create_sequences(df, seq_length)
 
 # Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
 
 # Flatten the input data for the model
 X_train_flat = X_train.reshape(X_train.shape[0], -1)

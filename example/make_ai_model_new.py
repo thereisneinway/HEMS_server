@@ -9,12 +9,13 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 
-df = pd.read_csv('processed_data.csv')
+#Predict as a schedule chunk
 
+df = pd.read_csv('processed_data.csv')
 print(df)
 
 
-input_columns = ['day', 'temp_Bedroom temp', 'temp_Outdoor temp', 'motion_Motion living room', 'light_environment', 'door_Door']
+input_columns = ['weekday', 'temp_Bedroom temp', 'temp_Outdoor temp', 'motion_Motion living room', 'light_environment', 'door_Door']
 target_columns = ['light_Shower', 'light_FR', 'light_FL', 'plug_AC', 'plug_Recirculation fan', 'plug_Floor lamp', 'plug_Artificial fan']
 
 
