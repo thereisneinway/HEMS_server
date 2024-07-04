@@ -10,7 +10,7 @@ data = pd.read_csv('cleaned_Data.csv')
 X = data.drop(columns=['light_Shower','light_FR','light_FL','plug_Recirculation fan','plug_Floor lamp','plug_Artificial fan','plug_AC','timestamp'])
 y = data[target]
 X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.1,random_state=0)
-clf = MLPClassifier()
+clf = DecisionTreeClassifier()
 
 clf.fit(X_train,y_train)
 y_pred = clf.predict(X_test)
@@ -95,4 +95,4 @@ print(y_real[0][0])
 
 
 # Export model
-joblib.dump(clf, 'model_LTSM.pkl')
+#joblib.dump(clf, 'model_LTSM.pkl')

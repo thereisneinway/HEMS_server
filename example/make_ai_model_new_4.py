@@ -96,7 +96,7 @@ MySQL_connection_details = {
     "TABLE_NAME": "main",
     "ENERGY_TABLE_NAME": "energy_test",
     "USERNAME": "doadmin",
-    "PASSWORD": "AVNS_Ph0KRopLI4DcuwpAU6x",
+    "PASSWORD": "",
     "CA_Path": "/ca-certificate.crt"
 }
 conn = mysql.connector.connect(host=MySQL_connection_details.get("HOST"),
@@ -210,6 +210,10 @@ for column in correction:
     predictions[column] = predictions[column].apply(lambda x: 1 if x == 0 else 0)
 print("PREDICTION:")
 print(predictions)
+
+today = datetime.today().strftime('%Y-%m-%d')
+timestamps = pd.date_range(start=f'{today} 00:00:00', periods=144, freq='10min')
+predictions['timestamp'] = timestamps
 
 predictions.to_csv('predicted_results.csv', index=False)
 print(f'Prediction has been successfully saved to predicted_results.csv')

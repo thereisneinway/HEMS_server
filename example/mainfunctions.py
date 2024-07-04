@@ -1,8 +1,13 @@
+import asyncio
+import csv
+import io
+
 import tuya_instructions as ti
 import database_instructions as da
 import intelligent as ai
 import json
 import logging
+import websockets
 from time import sleep
 from socket import socket, AF_INET, SOCK_STREAM, gethostname, gethostbyname
 from multiprocessing.pool import ThreadPool as Pool
@@ -30,6 +35,7 @@ MySQL_connection_details = {
 Sockets_hostname = gethostname()
 Sockets_hostip = gethostbyname(Sockets_hostname)
 Socket_mobile_port = 29562
+Socket_additional_mobile_port = 29563
 Socket_plug_port = 12347
 # Delay settings
 delay_automation = 60
@@ -134,7 +140,7 @@ def command_to_api(device_name: str, new_settings: dict):
     logger.info(str(datetime.now()) + " Command passed to Tuya instruction: " + device_name)
 
 
-# Automation handling
+# Automation handling (run by command_from_mobile)
 def add_automation(json_data):  # add an automation (run by handle_mobile_client)
     global AUTOMATION
     if json_data['If'] and json_data['Then']:
@@ -142,8 +148,6 @@ def add_automation(json_data):  # add an automation (run by handle_mobile_client
         return save_automation_to_file()
     else:
         return False
-
-
 def remove_automation(name: str):  # remove an automation (run by handle_mobile_client)
     for i in AUTOMATION:
         if i.get("Name") == name:
@@ -151,12 +155,14 @@ def remove_automation(name: str):  # remove an automation (run by handle_mobile_
     return save_automation_to_file()
 
 
+# Device manager handling (run by command_from_mobile)
 def remove_device(device_name: str):
     for i in DEVICES:
         if i.get("Device_name") == device_name:
             DEVICES.remove(i)
 
 
+# Push information to mobile (run by command_from_mobile)
 def push_automation_info_to_mobile(client_socket):  # send list of automations (run by handle_mobile_client)
     load_automation_from_file()
     if len(AUTOMATION) != 0:
@@ -178,8 +184,6 @@ def push_automation_info_to_mobile(client_socket):  # send list of automations (
             logger.info(str(datetime.now()) + " Automation text send to mobile: None")
         except Exception as e:
             logger.error(str(datetime.now()) + " Automation error sending text to mobile: " + str(e))
-
-
 def push_ai_stat_to_mobile(client_socket):
     try:
         data = {"msg_type": "AI_functionality_update", "status": ai_functionality}
@@ -190,7 +194,94 @@ def push_ai_stat_to_mobile(client_socket):
         logger.error(str(datetime.now()) + " Error sending text to mobile AI set: " + str(e))
 
 
-# Main functions
+# Additional mobile socket handler
+async def send_csv(websocket):
+    logger.info("Connection established with client")
+    try:
+        # Read CSV data from file
+        with open('predicted_results.csv', mode='r', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            csv_data = list(reader)
+
+        # Convert CSV data to a string
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerows(csv_data)
+        csv_string = output.getvalue()
+
+        # Send the CSV string over WebSocket
+        await websocket.send(csv_string)
+        logger.info("CSV data sent to client")
+    except Exception as e:
+        logger.error(f"Error: {e}")
+
+
+# AI handler
+def evaluate_models():  # Run daily after midnight
+    try:
+        real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
+        total_real_runtime = ai.calculate_runtime_real(real_runtime_table)
+        total_predict1_runtime = ai.calculate_runtime(AI_PREDICTED_1)
+        total_predict2_runtime = ai.calculate_runtime(AI_PREDICTED_2)
+        total_predict3_runtime = ai.calculate_runtime(AI_PREDICTED_3)
+        total_real_consumption = ai.calculate_total_consumption(
+            ai.calculate_each_devices_consumption(total_real_runtime, DEVICES.copy()))
+        total_predict1_consumption = ai.calculate_total_consumption(
+            ai.calculate_each_devices_consumption(total_predict1_runtime, DEVICES.copy()))
+        total_predict2_consumption = ai.calculate_total_consumption(
+            ai.calculate_each_devices_consumption(total_predict2_runtime, DEVICES.copy()))
+        total_predict3_consumption = ai.calculate_total_consumption(
+            ai.calculate_each_devices_consumption(total_predict3_runtime, DEVICES.copy()))
+        logger.info(str(datetime.now()) + " Energy prediction of model 1: " + str(total_predict1_consumption))
+        logger.info(str(datetime.now()) + " Energy prediction of model 2: " + str(total_predict2_consumption))
+        logger.info(str(datetime.now()) + " Energy prediction of model 3: " + str(total_predict3_consumption))
+        logger.info(str(datetime.now()) + " Energy calculation of real s: " + str(total_real_consumption))
+        energy = {"Actual": total_real_consumption, "Model 1": total_predict1_consumption,
+                  "Model 2": total_predict2_consumption, "Model 3": total_predict3_consumption}
+        save_energy_prediction_to_file(energy)
+        # Flush prediction after evaluate
+        save_ai_temp_to_file()
+        AI_PREDICTED_1.clear()
+        AI_PREDICTED_2.clear()
+        AI_PREDICTED_3.clear()
+    except Exception as e:
+        logger.error(str(datetime.now()) + " evaluate_models error: " + str(e))
+def push_energy_prediction_to_mobile(client_socket):
+    energy_list = load_energy_prediction_from_file()
+    if len(energy_list) != 0:
+        energy_list["msg_type"] = "Energy_prediction"
+        json_data = json.dumps(energy_list)
+        try:
+            client_socket.send((json_data + "\n").encode())
+            logger.info(str(datetime.now()) + " Send text to mobile Energy: " + str(energy_list))
+        except Exception as e:
+            logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
+def evaluate_device_status(predicted):
+    try:
+        del predicted['timestamp']
+        for key, value in predicted.items():
+            device = next((sub for sub in DEVICES if sub['Device_name'] == key), None)
+            current_value = device.get("STATUS").get("Power")
+            executable = True
+            try:
+                if AI_CHANGED[key] > 0: executable = False
+            except:
+                pass
+            if current_value != value and value is False and executable:
+                command_to_api(key, {'Power': value})
+                AI_CHANGED[key] = 1
+                logger.info(str(datetime.now()) + " AI executed device " + key)
+    except Exception as e:
+        logger.error(str(datetime.now()) + " AI thread error: " + str(e))
+def count_ai_preventer():
+    for key, value in list(AI_CHANGED.items()):
+        if value == 0:
+            del (AI_CHANGED[key])
+        elif value > 0:
+            AI_CHANGED[key] -= 1
+
+
+# MAIN FUNCTIONS
 def manage_automation():  # check automation condition periodically and run (periodically)
     logger.info("Automation started")
     while True:
@@ -228,7 +319,6 @@ def manage_automation():  # check automation condition periodically and run (per
                             execute = json.loads('{"' + j["variable"] + '": ' + str(j["value"]) + '}')
                         command_to_api(j["Device_name"], execute)
 
-
 # Pull device status from Tuya
 def fetch_devices_stat():
     while True:
@@ -243,7 +333,6 @@ def fetch_devices_stat():
             [result.wait() for result in results]
         except Exception as e:
             logger.error(str(datetime.now()) + "fetch_devices_stat  " + " error: " + str(e))
-
 
 # Push message mobile application (when connected)
 def update_device_to_mobile(client_socket):
@@ -284,7 +373,6 @@ def update_device_to_mobile(client_socket):
         else:
             continue
         break
-
 
 # Handling command from mobile application (when connected)
 def handle_mobile_client(client_socket):
@@ -389,7 +477,6 @@ def handle_mobile_client(client_socket):
             client_socket.close()
             break
 
-
 # Handle incoming socket from mobile application
 def connect_to_mobile():
     global mobile_is_connected
@@ -408,7 +495,7 @@ def connect_to_mobile():
         client_thread.join()
         value_thread.join()
 
-
+# Debug functionality
 def handle_direct_command():
     while True:
         global mobile_is_connected
@@ -466,7 +553,6 @@ def database_manage():
             logger.error(str(datetime.now()) + " Database thread error: " + str(e))
         sleep(delay_database)
 
-
 # AI function
 def append_prediction():
     evaluated_flag = 0
@@ -501,76 +587,7 @@ def append_prediction():
         sleep(delay_ai)
 
 
-def evaluate_models():  # Run daily after midnight
-    try:
-        real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
-        total_real_runtime = ai.calculate_runtime_real(real_runtime_table)
-        total_predict1_runtime = ai.calculate_runtime(AI_PREDICTED_1)
-        total_predict2_runtime = ai.calculate_runtime(AI_PREDICTED_2)
-        total_predict3_runtime = ai.calculate_runtime(AI_PREDICTED_3)
-        total_real_consumption = ai.calculate_total_consumption(
-            ai.calculate_each_devices_consumption(total_real_runtime, DEVICES.copy()))
-        total_predict1_consumption = ai.calculate_total_consumption(
-            ai.calculate_each_devices_consumption(total_predict1_runtime, DEVICES.copy()))
-        total_predict2_consumption = ai.calculate_total_consumption(
-            ai.calculate_each_devices_consumption(total_predict2_runtime, DEVICES.copy()))
-        total_predict3_consumption = ai.calculate_total_consumption(
-            ai.calculate_each_devices_consumption(total_predict3_runtime, DEVICES.copy()))
-        logger.info(str(datetime.now()) + " Energy prediction of model 1: " + str(total_predict1_consumption))
-        logger.info(str(datetime.now()) + " Energy prediction of model 2: " + str(total_predict2_consumption))
-        logger.info(str(datetime.now()) + " Energy prediction of model 3: " + str(total_predict3_consumption))
-        logger.info(str(datetime.now()) + " Energy calculation of real s: " + str(total_real_consumption))
-        energy = {"Actual": total_real_consumption, "Model 1": total_predict1_consumption,
-                  "Model 2": total_predict2_consumption, "Model 3": total_predict3_consumption}
-        save_energy_prediction_to_file(energy)
-        # Flush prediction after evaluate
-        save_ai_temp_to_file()
-        AI_PREDICTED_1.clear()
-        AI_PREDICTED_2.clear()
-        AI_PREDICTED_3.clear()
-    except Exception as e:
-        logger.error(str(datetime.now()) + " evaluate_models error: " + str(e))
-
-
-def push_energy_prediction_to_mobile(client_socket):
-    energy_list = load_energy_prediction_from_file()
-    if len(energy_list) != 0:
-        energy_list["msg_type"] = "Energy_prediction"
-        json_data = json.dumps(energy_list)
-        try:
-            client_socket.send((json_data + "\n").encode())
-            logger.info(str(datetime.now()) + " Send text to mobile Energy: " + str(energy_list))
-        except Exception as e:
-            logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
-
-
-def evaluate_device_status(predicted):
-    try:
-        del predicted['timestamp']
-        for key, value in predicted.items():
-            device = next((sub for sub in DEVICES if sub['Device_name'] == key), None)
-            current_value = device.get("STATUS").get("Power")
-            executable = True
-            try:
-                if AI_CHANGED[key] > 0: executable = False
-            except:
-                pass
-            if current_value != value and value is False and executable:
-                command_to_api(key, {'Power': value})
-                AI_CHANGED[key] = 1
-                logger.info(str(datetime.now()) + " AI executed device " + key)
-    except Exception as e:
-        logger.error(str(datetime.now()) + " AI thread error: " + str(e))
-
-
-def count_ai_preventer():
-    for key, value in list(AI_CHANGED.items()):
-        if value == 0:
-            del (AI_CHANGED[key])
-        elif value > 0:
-            AI_CHANGED[key] -= 1
-
-
+# Additional socket
 # Receiving data from customize plug
 def read_plug():
     while True:
@@ -599,6 +616,16 @@ def read_plug():
             except Exception as e:
                 logger.error(str(datetime.now())+ ' custom plug reading error: ' + str(e))
 
+def start_websocket_server():
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    start_server = websockets.serve(send_csv, Sockets_hostname, Socket_additional_mobile_port)
+    logger.info(str(datetime.now()) + " additional socket run at: " + " " + Sockets_hostip + ":" + str(Socket_additional_mobile_port))
+    logger.info("WebSocket server starting...")
+    asyncio.get_event_loop().run_until_complete(start_server)
+    logger.info("WebSocket server started")
+    asyncio.get_event_loop().run_forever()
+
+
 
 logger.info("Settings: \n     Delay for Automation:" + str(delay_automation) + "\n     AI functionality:" + str(
     ai_functionality) + "\n     Delay for AI:" + str(
@@ -616,17 +643,20 @@ database_thread = Thread(target=database_manage)
 plug_thread = Thread(target=read_plug)
 ai_thread = Thread(target=append_prediction)
 direct_command_thread = Thread(target=handle_direct_command)
+additional_websocket_thread = Thread(target=start_websocket_server)
 mobile_thread.start()
 automation_thread.start()
-fetch_devices_thread.start()
-database_thread.start()
+#fetch_devices_thread.start()
+#database_thread.start()
 plug_thread.start()
 ai_thread.start()
+additional_websocket_thread.start()
 mobile_thread.join()
 automation_thread.join()
-fetch_devices_thread.join()
-database_thread.join()
+#fetch_devices_thread.join()
+#database_thread.join()
 plug_thread.join()
 ai_thread.join()
+additional_websocket_thread.join()
 direct_command_thread.daemon = True
 direct_command_thread.start()
