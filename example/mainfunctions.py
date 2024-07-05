@@ -196,24 +196,21 @@ def push_ai_stat_to_mobile(client_socket):
 
 # Additional mobile socket handler
 async def send_csv(websocket):
-    logger.info("Connection established with client")
     try:
-        # Read CSV data from file
+        logger.info(str(datetime.now()) + "Additional socket got connection..")
         with open('predicted_results.csv', mode='r', newline='') as csvfile:
             reader = csv.reader(csvfile)
             csv_data = list(reader)
 
-        # Convert CSV data to a string
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerows(csv_data)
         csv_string = output.getvalue()
 
-        # Send the CSV string over WebSocket
         await websocket.send(csv_string)
-        logger.info("CSV data sent to client")
+        logger.info(str(datetime.now()) + "Additional socket sent CSV to client")
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(str(datetime.now()) + f" Additional socket Error: {e}")
 
 
 # AI handler
@@ -619,10 +616,8 @@ def read_plug():
 def start_websocket_server():
     asyncio.set_event_loop(asyncio.new_event_loop())
     start_server = websockets.serve(send_csv, Sockets_hostname, Socket_additional_mobile_port)
-    logger.info(str(datetime.now()) + " additional socket run at: " + " " + Sockets_hostip + ":" + str(Socket_additional_mobile_port))
-    logger.info("WebSocket server starting...")
+    logger.info(str(datetime.now()) + " Additional socket run at: " + " " + Sockets_hostip + ":" + str(Socket_additional_mobile_port))
     asyncio.get_event_loop().run_until_complete(start_server)
-    logger.info("WebSocket server started")
     asyncio.get_event_loop().run_forever()
 
 
