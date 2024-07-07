@@ -195,7 +195,7 @@ def push_ai_stat_to_mobile(client_socket):
 
 
 # Additional mobile socket handler
-async def send_csv(websocket):
+async def push_prediction_schedule(websocket):
     try:
         logger.info(str(datetime.now()) + "Additional socket got connection..")
         with open('predicted_results.csv', mode='r', newline='') as csvfile:
@@ -218,29 +218,21 @@ def evaluate_models():  # Run daily after midnight
     try:
         real_runtime_table = da.query_database_for_calculate_runtime(MySQL_connection_details, datetime.now())
         total_real_runtime = ai.calculate_runtime_real(real_runtime_table)
-        total_predict1_runtime = ai.calculate_runtime(AI_PREDICTED_1)
-        total_predict2_runtime = ai.calculate_runtime(AI_PREDICTED_2)
-        total_predict3_runtime = ai.calculate_runtime(AI_PREDICTED_3)
+
+        da.query_database_for_schedule_prediction(MySQL_connection_details,datetime.now())
+        ai.evaluate_schedule()
+        total_predict1_runtime = ai.calculate_runtime(ai.convert_csv_to_json())
+
+
         total_real_consumption = ai.calculate_total_consumption(
             ai.calculate_each_devices_consumption(total_real_runtime, DEVICES.copy()))
         total_predict1_consumption = ai.calculate_total_consumption(
             ai.calculate_each_devices_consumption(total_predict1_runtime, DEVICES.copy()))
-        total_predict2_consumption = ai.calculate_total_consumption(
-            ai.calculate_each_devices_consumption(total_predict2_runtime, DEVICES.copy()))
-        total_predict3_consumption = ai.calculate_total_consumption(
-            ai.calculate_each_devices_consumption(total_predict3_runtime, DEVICES.copy()))
         logger.info(str(datetime.now()) + " Energy prediction of model 1: " + str(total_predict1_consumption))
-        logger.info(str(datetime.now()) + " Energy prediction of model 2: " + str(total_predict2_consumption))
-        logger.info(str(datetime.now()) + " Energy prediction of model 3: " + str(total_predict3_consumption))
         logger.info(str(datetime.now()) + " Energy calculation of real s: " + str(total_real_consumption))
-        energy = {"Actual": total_real_consumption, "Model 1": total_predict1_consumption,
-                  "Model 2": total_predict2_consumption, "Model 3": total_predict3_consumption}
+        energy = {"Actual": total_real_consumption, "Model 1": total_predict1_consumption}
         save_energy_prediction_to_file(energy)
         # Flush prediction after evaluate
-        save_ai_temp_to_file()
-        AI_PREDICTED_1.clear()
-        AI_PREDICTED_2.clear()
-        AI_PREDICTED_3.clear()
     except Exception as e:
         logger.error(str(datetime.now()) + " evaluate_models error: " + str(e))
 def push_energy_prediction_to_mobile(client_socket):
@@ -253,10 +245,17 @@ def push_energy_prediction_to_mobile(client_socket):
             logger.info(str(datetime.now()) + " Send text to mobile Energy: " + str(energy_list))
         except Exception as e:
             logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
-def evaluate_device_status(predicted):
+def count_ai_preventer():
+    for key, value in list(AI_CHANGED.items()):
+        if value == 0:
+            del (AI_CHANGED[key])
+        elif value > 0:
+            AI_CHANGED[key] -= 1
+def execution():
+    instruction = ai.query_specific_instruction(datetime.now())
     try:
-        del predicted['timestamp']
-        for key, value in predicted.items():
+        del instruction['timestamp']
+        for key, value in instruction.items():
             device = next((sub for sub in DEVICES if sub['Device_name'] == key), None)
             current_value = device.get("STATUS").get("Power")
             executable = True
@@ -269,14 +268,7 @@ def evaluate_device_status(predicted):
                 AI_CHANGED[key] = 1
                 logger.info(str(datetime.now()) + " AI executed device " + key)
     except Exception as e:
-        logger.error(str(datetime.now()) + " AI thread error: " + str(e))
-def count_ai_preventer():
-    for key, value in list(AI_CHANGED.items()):
-        if value == 0:
-            del (AI_CHANGED[key])
-        elif value > 0:
-            AI_CHANGED[key] -= 1
-
+        logger.error(str(datetime.now()) + " Intelligent execution error: " + str(e))
 
 # MAIN FUNCTIONS
 def manage_automation():  # check automation condition periodically and run (periodically)
@@ -501,6 +493,10 @@ def handle_direct_command():
             mobile_is_connected = False
         elif command == "cat_energy":
             print(load_energy_prediction_from_file())
+        elif command == "force_evaluate":
+            evaluate_models()
+        elif command == "force_execution":
+            execution()
         elif command == "cat_AI_CHANGED":
             print(str(AI_CHANGED))
         elif command == "cat_DEVICES":
@@ -509,10 +505,6 @@ def handle_direct_command():
             print(str(AUTOMATION))
         elif command == "cat_AI_PREDICTED_1":
             print(str(AI_PREDICTED_1))
-        elif command == "cat_AI_PREDICTED_2":
-            print(str(AI_PREDICTED_2))
-        elif command == "cat_AI_PREDICTED_3":
-            print(str(AI_PREDICTED_3))
         elif command == "cat_settings":
             print("Settings: \n     Delay for Automation:" + str(delay_automation) + "\n     AI functionality:" + str(
                 ai_functionality) + "\n     Delay for AI:" + str(
@@ -551,33 +543,23 @@ def database_manage():
         sleep(delay_database)
 
 # AI function
-def append_prediction():
+def evaluation():
     evaluated_flag = 0
     while True:
-        predicted = [ai.evaluate_with_model("model_decisionTree.pkl", DEVICES.copy())]
-        predicted[0]['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M:00')
-        predicted.append(ai.evaluate_with_model("model_randForest.pkl", DEVICES.copy()))
-        predicted[1]['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M:00')
-        predicted.append(ai.evaluate_with_model("model_LTSM.pkl", DEVICES.copy()))
-        predicted[2]['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M:00')
-        AI_PREDICTED_1.append(predicted[0])
-        AI_PREDICTED_2.append(predicted[1])
-        AI_PREDICTED_3.append(predicted[2])
         now = datetime.now()
-        if ai_functionality != -1:
-            logger.debug(str(datetime.now()) + " Executing evaluate_device_status")
-            evaluate_device_status(predicted[ai_functionality])
-        if now.minute == 0:
+        if now.minute%10 == 0 and ai_functionality == 0:
+            execution()
+        if now.minute == 0: #Run every hour
             try:
                 da.calculate_energy(MySQL_connection_details, datetime.now())
                 logger.info(str(datetime.now()) + " Calculated energy and append to table")
             except Exception as e:
                 logger.error(str(datetime.now()) + " Calculated energy failed: " + str(e))
-        if now.hour == 0 and now.minute == 0 and evaluated_flag == 0:
+        if now.hour == 0 and now.minute == 0 and evaluated_flag == 0: #Run once every midnight
             logger.debug(str(datetime.now()) + " Executing evaluate_models")
             evaluate_models()
             evaluated_flag = 1
-        if now.hour == 1 and now.minute == 0:
+        if now.hour == 1 and now.minute == 0: #Run once after mdnight
             logger.debug(str(datetime.now()) + " Executing flag reset for evaluate_models")
             evaluated_flag = 0
         count_ai_preventer()
@@ -615,7 +597,7 @@ def read_plug():
 
 def start_websocket_server():
     asyncio.set_event_loop(asyncio.new_event_loop())
-    start_server = websockets.serve(send_csv, Sockets_hostname, Socket_additional_mobile_port)
+    start_server = websockets.serve(push_prediction_schedule, Sockets_hostname, Socket_additional_mobile_port)
     logger.info(str(datetime.now()) + " Additional socket run at: " + " " + Sockets_hostip + ":" + str(Socket_additional_mobile_port))
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().run_forever()
@@ -636,22 +618,22 @@ automation_thread = Thread(target=manage_automation)
 fetch_devices_thread = Thread(target=fetch_devices_stat)
 database_thread = Thread(target=database_manage)
 plug_thread = Thread(target=read_plug)
-ai_thread = Thread(target=append_prediction)
+ai_thread = Thread(target=evaluation)
 direct_command_thread = Thread(target=handle_direct_command)
 additional_websocket_thread = Thread(target=start_websocket_server)
 mobile_thread.start()
 automation_thread.start()
-#fetch_devices_thread.start()
-#database_thread.start()
+fetch_devices_thread.start()
+database_thread.start()
 plug_thread.start()
 ai_thread.start()
 additional_websocket_thread.start()
-mobile_thread.join()
-automation_thread.join()
-#fetch_devices_thread.join()
-#database_thread.join()
-plug_thread.join()
-ai_thread.join()
-additional_websocket_thread.join()
 direct_command_thread.daemon = True
 direct_command_thread.start()
+mobile_thread.join()
+automation_thread.join()
+fetch_devices_thread.join()
+database_thread.join()
+plug_thread.join()
+ai_thread.join()
+#additional_websocket_thread.join()

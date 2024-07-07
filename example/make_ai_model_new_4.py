@@ -83,7 +83,11 @@ def train_and_evaluate(target_device):
 models = {}
 for device in devices:
     models[device] = train_and_evaluate(device)
+    joblib.dump(models[device], 'model_'+device+'.pkl')
 
+
+
+"""
 # TEST MODEL ON ACTUAL DATA:
 
 # Import data
@@ -108,12 +112,12 @@ conn = mysql.connector.connect(host=MySQL_connection_details.get("HOST"),
 cursor = conn.cursor()
 seven_days_ago = (datetime.now() - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
 current_day_midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-query = f"""
+query = f"
 SELECT * FROM main
 WHERE timestamp >= '{seven_days_ago.strftime('%Y-%m-%d %H:%M:%S')}'
 AND timestamp < '{current_day_midnight.strftime('%Y-%m-%d %H:%M:%S')}'
 ORDER BY timestamp;
-"""
+"
 cursor.execute(query)
 rows = cursor.fetchall()
 column_names = cursor.column_names
@@ -208,6 +212,9 @@ for device, model in models.items():
 correction = ['plug_AC']
 for column in correction:
     predictions[column] = predictions[column].apply(lambda x: 1 if x == 0 else 0)
+
+predictions = predictions.rename(columns={'light_Shower': 'Shower', 'light_FR': 'FR', 'light_FL': 'FL', 'plug_AC': 'AC', 'plug_Recirculation fan': 'Recirculation fan', 'plug_Floor lamp': 'Floor lamp', 'plug_Artificial fan': 'Artificial fan'})
+
 print("PREDICTION:")
 print(predictions)
 
@@ -217,3 +224,4 @@ predictions['timestamp'] = timestamps
 
 predictions.to_csv('predicted_results.csv', index=False)
 print(f'Prediction has been successfully saved to predicted_results.csv')
+"""

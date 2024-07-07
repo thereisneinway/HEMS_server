@@ -2,6 +2,9 @@ from datetime import timedelta, datetime
 import mysql.connector
 import time
 
+import numpy as np
+import pandas as pd
+
 
 # Log to database at once
 def create_table(cursor, table_name: str):
@@ -304,3 +307,61 @@ def query_database_for_calculate_runtime(MySQL_connection_details: dict, current
     cursor.close()
     MySQL.close()
     return real_runtime_table
+
+def query_database_for_schedule_prediction(MySQL_connection_details: dict, current_timestamp: time):
+    conn = mysql.connector.connect(host=MySQL_connection_details.get("HOST"),
+                                   port=MySQL_connection_details.get("PORT"),
+                                   database=MySQL_connection_details.get("DATABASE_NAME"),
+                                   user=MySQL_connection_details.get("USERNAME"),
+                                   password=MySQL_connection_details.get("PASSWORD"),
+                                   ssl_ca=MySQL_connection_details.get("CA_path"), connection_timeout=180000)
+    cursor = conn.cursor()
+    seven_days_ago = (current_timestamp - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    current_day_midnight = current_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+    query = f"""
+    SELECT * FROM main
+    WHERE timestamp >= '{seven_days_ago.strftime('%Y-%m-%d %H:%M:%S')}'
+    AND timestamp < '{current_day_midnight.strftime('%Y-%m-%d %H:%M:%S')}'
+    ORDER BY timestamp;
+    """
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    column_names = cursor.column_names
+    df = pd.DataFrame(rows, columns=column_names)
+
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df.set_index('timestamp', inplace=True)
+
+    df_resampled = df.resample('10min').first()
+    print("QUERIED AND RESAMPLE TO 10min DATA:")
+    print(df_resampled)
+
+    columns_to_drop = ['plug_book', 'total_power', 'cplug_peaky']
+    df_resampled.drop(columns=columns_to_drop, inplace=True)
+
+    df_resampled['weekday'] = df_resampled.index.to_series().apply(lambda x: 1 if x.weekday() < 5 else 0)
+    df_resampled.reset_index(inplace=True)
+
+    df_resampled.drop(columns=['timestamp'], inplace=True)
+
+    cursor.close()
+    conn.close()
+
+
+    # Processing actual data
+
+    df_resampled['temp_Bedroom temp'] = df_resampled['temp_Bedroom temp'].replace(0, np.nan)
+    df_resampled['temp_Outdoor temp'] = df_resampled['temp_Outdoor temp'].replace(0, np.nan)
+    df_resampled['light_environment'] = df_resampled['light_environment'].replace(0, np.nan)
+
+    max_temp = 438
+    min_temp = 206
+
+    df_resampled['light_environment'] = pd.to_numeric(df_resampled['light_environment'], errors='coerce')
+
+    df_resampled['temp_Bedroom temp'] = (df_resampled['temp_Bedroom temp'] - min_temp) / (max_temp - min_temp)
+    df_resampled['temp_Outdoor temp'] = (df_resampled['temp_Outdoor temp'] - min_temp) / (max_temp - min_temp)
+    df_resampled['light_environment'] = (df_resampled['light_environment'] - 1) / (3 - 1)
+
+    csv_file_path = 'processed_actual_data_7days.csv'
+    df_resampled.to_csv(csv_file_path, index=False)
