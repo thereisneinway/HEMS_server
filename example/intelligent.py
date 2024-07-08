@@ -63,9 +63,15 @@ def calculate_runtime_real(runtime_table: []): #Hardcoded devices
 
 def calculate_device_average_power(device: dict):
     if device["Device_type"] == "light":
-        return 100
-    elif device["Device_type"] == "plug":
+        return 150
+    elif device["Device_name"] == "AC":
+        return 5000
+    elif device["Device_name"] == "Recirculation fan":
+        return 450
+    elif device["Device_name"] == "Floor lamp":
         return 300
+    elif device["Device_name"] == "Artificial fan":
+        return 500
     else: return 0
 def calculate_each_devices_consumption(devices_runtime: [], devices: []):
     devices_consumption = []
@@ -174,7 +180,6 @@ def query_specific_instruction(input_time: datetime):
 
     # Convert the DataFrame to a list of dictionaries
     if not matched_row.empty:
-        print("Matched rows: " + str(len(matched_row)))
         result_dict = matched_row.drop(columns='time_only').to_dict(orient='records')[0]
         return result_dict
     else:

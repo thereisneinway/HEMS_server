@@ -333,8 +333,6 @@ def query_database_for_schedule_prediction(MySQL_connection_details: dict, curre
     df.set_index('timestamp', inplace=True)
 
     df_resampled = df.resample('10min').first()
-    print("QUERIED AND RESAMPLE TO 10min DATA:")
-    print(df_resampled)
 
     columns_to_drop = ['plug_book', 'total_power', 'cplug_peaky']
     df_resampled.drop(columns=columns_to_drop, inplace=True)

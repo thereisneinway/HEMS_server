@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from sklearn import metrics
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import classification_report, accuracy_score
 import joblib
@@ -76,8 +77,10 @@ def train_and_evaluate(target_device):
 
     y_pred = clf.predict(test_data)
     accuracy = accuracy_score(test_targets, y_pred)
-
+    cr = classification_report(test_targets, y_pred)
+    confusion_matrix = metrics.confusion_matrix(test_targets, y_pred)
     print(f'Accuracy for predicting {target_device}: {accuracy:.2f}')
+    print(confusion_matrix)
     return clf
 
 models = {}

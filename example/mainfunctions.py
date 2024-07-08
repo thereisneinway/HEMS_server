@@ -113,24 +113,6 @@ def load_energy_prediction_from_file():
         logger.error(str(datetime.now()) + " Energy prediction file error")
 
 
-# Handling AI file
-def save_ai_temp_to_file():
-    with open('ai_1.txt', 'w') as ai_file:
-        ai_file.write(json.dumps(AI_PREDICTED_1))
-    with open('ai_2.txt', 'w') as ai_file:
-        ai_file.write(json.dumps(AI_PREDICTED_2))
-    with open('ai_3.txt', 'w') as ai_file:
-        ai_file.write(json.dumps(AI_PREDICTED_3))
-def load_ai_temp_from_file():
-    global AI_PREDICTED_1, AI_PREDICTED_2, AI_PREDICTED_3
-    try:
-        AI_PREDICTED_1 = json.load(open("ai_1.txt"))
-        AI_PREDICTED_2 = json.load(open("ai_2.txt"))
-        AI_PREDICTED_3 = json.load(open("ai_3.txt"))
-    except Exception:
-        logger.error(str(datetime.now()) + " AI file error")
-
-
 
 # Identify device and send command to tuya (run by command_from_mobile)
 def command_to_api(device_name: str, new_settings: dict):
@@ -184,7 +166,7 @@ def push_automation_info_to_mobile(client_socket):  # send list of automations (
             logger.info(str(datetime.now()) + " Automation text send to mobile: None")
         except Exception as e:
             logger.error(str(datetime.now()) + " Automation error sending text to mobile: " + str(e))
-def push_ai_stat_to_mobile(client_socket):
+def push_ai_setting_to_mobile(client_socket):
     try:
         data = {"msg_type": "AI_functionality_update", "status": ai_functionality}
         json_data = json.dumps(data)
@@ -193,8 +175,6 @@ def push_ai_stat_to_mobile(client_socket):
     except Exception as e:
         logger.error(str(datetime.now()) + " Error sending text to mobile AI set: " + str(e))
 
-
-# Additional mobile socket handler
 async def push_prediction_schedule(websocket):
     try:
         logger.info(str(datetime.now()) + "Additional socket got connection..")
@@ -212,6 +192,16 @@ async def push_prediction_schedule(websocket):
     except Exception as e:
         logger.error(str(datetime.now()) + f" Additional socket Error: {e}")
 
+def push_energy_prediction_to_mobile(client_socket):
+    energy_list = load_energy_prediction_from_file()
+    if len(energy_list) != 0:
+        energy_list["msg_type"] = "Energy_prediction"
+        json_data = json.dumps(energy_list)
+        try:
+            client_socket.send((json_data + "\n").encode())
+            logger.info(str(datetime.now()) + " Send text to mobile Energy: " + str(energy_list))
+        except Exception as e:
+            logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
 
 # AI handler
 def evaluate_models():  # Run daily after midnight
@@ -235,23 +225,14 @@ def evaluate_models():  # Run daily after midnight
         # Flush prediction after evaluate
     except Exception as e:
         logger.error(str(datetime.now()) + " evaluate_models error: " + str(e))
-def push_energy_prediction_to_mobile(client_socket):
-    energy_list = load_energy_prediction_from_file()
-    if len(energy_list) != 0:
-        energy_list["msg_type"] = "Energy_prediction"
-        json_data = json.dumps(energy_list)
-        try:
-            client_socket.send((json_data + "\n").encode())
-            logger.info(str(datetime.now()) + " Send text to mobile Energy: " + str(energy_list))
-        except Exception as e:
-            logger.error(str(datetime.now()) + " Error sending text to mobile Energy: " + str(e))
+
 def count_ai_preventer():
     for key, value in list(AI_CHANGED.items()):
         if value == 0:
             del (AI_CHANGED[key])
         elif value > 0:
             AI_CHANGED[key] -= 1
-def execution():
+def execute_prediction():
     instruction = ai.query_specific_instruction(datetime.now())
     try:
         del instruction['timestamp']
@@ -263,12 +244,12 @@ def execution():
                 if AI_CHANGED[key] > 0: executable = False
             except:
                 pass
-            if current_value != value and value is False and executable:
+            if current_value != value and executable:
                 command_to_api(key, {'Power': value})
                 AI_CHANGED[key] = 1
-                logger.info(str(datetime.now()) + " AI executed device " + key)
+                logger.info(str(datetime.now()) + " AI executed device: " + key)
     except Exception as e:
-        logger.error(str(datetime.now()) + " Intelligent execution error: " + str(e))
+        logger.error(str(datetime.now()) + " AI execution error: " + str(e))
 
 # MAIN FUNCTIONS
 def manage_automation():  # check automation condition periodically and run (periodically)
@@ -339,7 +320,7 @@ def update_device_to_mobile(client_socket):
             logger.error(str(datetime.now()) + " Error sending initial text to mobile: " + str(e))
             break
     push_automation_info_to_mobile(client_socket)
-    push_ai_stat_to_mobile(client_socket)
+    push_ai_setting_to_mobile(client_socket)
     while client_socket:
         for i in DEVICES:
             if "close" in str(client_socket):
@@ -449,7 +430,7 @@ def handle_mobile_client(client_socket):
             elif msg_type == "set_ai_functionality":
                 global ai_functionality
                 ai_functionality = json_data_rece["set"]
-                push_ai_stat_to_mobile(client_socket)
+                push_ai_setting_to_mobile(client_socket)
             elif msg_type == "request_energy_history_list":
                 period = json_data_rece["period"]
                 energy_history_dict = da.query_energy(MySQL_connection_details, period, datetime.now())
@@ -460,7 +441,7 @@ def handle_mobile_client(client_socket):
             elif msg_type == "request_energy_prediction_list":
                 push_energy_prediction_to_mobile(client_socket)
             elif msg_type == "request_ai_functionality":
-                push_ai_stat_to_mobile(client_socket)
+                push_ai_setting_to_mobile(client_socket)
         except Exception as e:
             logger.error(str(datetime.now()) + " Handling mobile thread error: " + str(e))
             client_socket.close()
@@ -491,12 +472,18 @@ def handle_direct_command():
         command = input()
         if command == "stop_socket":
             mobile_is_connected = False
+        elif command == "start_read_plug":
+            try:
+                plug_thread2 = Thread(target=read_plug)
+                plug_thread2.start()
+            except:
+                logger.error("Could not start read plug thread")
         elif command == "cat_energy":
             print(load_energy_prediction_from_file())
         elif command == "force_evaluate":
             evaluate_models()
         elif command == "force_execution":
-            execution()
+            execute_prediction()
         elif command == "cat_AI_CHANGED":
             print(str(AI_CHANGED))
         elif command == "cat_DEVICES":
@@ -548,7 +535,7 @@ def evaluation():
     while True:
         now = datetime.now()
         if now.minute%10 == 0 and ai_functionality == 0:
-            execution()
+            execute_prediction()
         if now.minute == 0: #Run every hour
             try:
                 da.calculate_energy(MySQL_connection_details, datetime.now())
@@ -567,7 +554,6 @@ def evaluation():
 
 
 # Additional socket
-# Receiving data from customize plug
 def read_plug():
     while True:
         plug_server_socket = socket(AF_INET, SOCK_STREAM)
@@ -612,7 +598,6 @@ logger.info("Settings: \n     Delay for Automation:" + str(delay_automation) + "
     "HOST") + "\n     Fetch thread pool no: " + str(fetch_thread_pool_size))
 load_devices_from_file()
 load_automation_from_file()
-load_ai_temp_from_file()
 mobile_thread = Thread(target=connect_to_mobile)
 automation_thread = Thread(target=manage_automation)
 fetch_devices_thread = Thread(target=fetch_devices_stat)

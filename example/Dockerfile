@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir mysql-connector-python
 RUN pip install --no-cache-dir pandas
 RUN pip install --no-cache-dir joblib
 RUN pip install --no-cache-dir scikit-learn
+RUN pip install --no-cache-dir websockets
 RUN apt-get update && apt-get install -y tzdata
 ENV TZ=Asia/Bangkok
 RUN dpkg-reconfigure -f noninteractive tzdata
