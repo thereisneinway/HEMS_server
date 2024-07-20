@@ -2,15 +2,22 @@ import numpy as np
 import pandas as pd
 from sklearn import metrics
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.utils import shuffle
 from sklearn.metrics import classification_report, accuracy_score
 import joblib
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-pd.set_option('display.max_columns', 13)
+pd.set_option('display.max_columns', 15)
 #Predict as a schedule chunk
 
 file_paths = ['processed_data_alive.csv', 'processed_data_away.csv', 'processed_data_sleep.csv']
+min_rows = 0
 df = [pd.read_csv(file_path) for file_path in file_paths]
 data_frames = []
 for i, file_path in enumerate(file_paths):
@@ -28,22 +35,13 @@ sensors = ['temp_Bedroom temp', 'temp_Outdoor temp', 'motion_Motion living room'
            'weekday']
 
 
+
+
 def create_aggregated_features_training(data, sensors, devices, target_device):
     aggregated_data = []
     target_data = []
 
-    interval = 144  # Interval for 10-minute data points to cover 24 hours
-    ''' NON MODIFIED CODE=
-    for i in range(interval * 7, len(data)):
-        # Collect data for the past 7 days (24 hours apart)
-        past_week_data = []
-        for j in range(7):
-            if i - j * interval >= 0:
-                try:
-                    past_week_data.append(data.iloc[i - j * interval])
-                except IndexError:
-                    continue
-    '''
+    interval = 144
     for i in range(0, int(len(data)/7)):
         # Collect data for the past 7 days (24 hours apart)
         past_week_data = []
@@ -68,6 +66,7 @@ def create_aggregated_features_training(data, sensors, devices, target_device):
 
     feature_columns = [f'{sensor}' for sensor in sensors + [d for d in devices if d != target_device]]
     return pd.DataFrame(aggregated_data, columns=feature_columns), pd.Series(target_data, name=target_device)
+
 def train_and_evaluate(target_device):
     X, y = create_aggregated_features_training(data, sensors, devices, target_device)
     train_data, test_data, train_targets, test_targets = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -77,7 +76,7 @@ def train_and_evaluate(target_device):
 
     y_pred = clf.predict(test_data)
     accuracy = accuracy_score(test_targets, y_pred)
-    cr = classification_report(test_targets, y_pred)
+    #cr = classification_report(test_targets, y_pred)
     confusion_matrix = metrics.confusion_matrix(test_targets, y_pred)
     print(f'Accuracy for predicting {target_device}: {accuracy:.2f}')
     print(confusion_matrix)
@@ -103,7 +102,7 @@ MySQL_connection_details = {
     "TABLE_NAME": "main",
     "ENERGY_TABLE_NAME": "energy_test",
     "USERNAME": "doadmin",
-    "PASSWORD": "",
+    "PASSWORD": "AVNS_Ph0KRopLI4DcuwpAU6x",
     "CA_Path": "/ca-certificate.crt"
 }
 conn = mysql.connector.connect(host=MySQL_connection_details.get("HOST"),
@@ -228,3 +227,95 @@ predictions['timestamp'] = timestamps
 predictions.to_csv('predicted_results.csv', index=False)
 print(f'Prediction has been successfully saved to predicted_results.csv')
 """
+
+
+"""
+file_paths = ['processed_data_alive.csv', 'processed_data_away.csv', 'processed_data_sleep.csv']
+min_rows = 10000
+df = [pd.read_csv(file_path) for file_path in file_paths]
+data_frames = []
+for i, file_path in enumerate(file_paths):
+    df = pd.read_csv(file_path)
+    min_rows = len(df) if len(df) < min_rows else min_rows
+
+    data_frames.append(df.sample(min_rows, random_state=42))
+data = pd.concat(data_frames)
+
+
+
+devices = ['light_Shower', 'light_FR', 'light_FL', 'plug_AC', 'plug_Recirculation fan', 'plug_Floor lamp',
+           'plug_Artificial fan']
+sensors = ['temp_Bedroom temp', 'temp_Outdoor temp', 'motion_Motion living room', 'light_environment', 'door_Door',
+           ]
+
+
+
+
+
+
+
+
+def create_aggregated_features_training(data, sensors, devices, target_device):
+    aggregated_data = []
+    target_data = []
+
+    interval = 144
+    for i in range(0, int(len(data)/7)):
+        # Collect data for the past 7 days (24 hours apart)
+        past_week_data = []
+        for j in range(7):
+            if i * j * interval >= 0:
+                try:
+                    past_week_data.append(data.iloc[i - j * interval])
+                except IndexError:
+                    continue
+
+        if len(past_week_data) < 7:
+            continue  # Skip if we don't have full week data
+
+        past_week_df = pd.DataFrame(past_week_data)
+        aggregated_features = past_week_df[sensors + [d for d in devices if d != target_device]].mean().tolist()
+
+        # Add device status for the next day as target
+        target_device_status = data.iloc[i][target_device]
+
+        aggregated_data.append(aggregated_features)
+        target_data.append(target_device_status)
+
+    feature_columns = [f'{sensor}' for sensor in sensors + [d for d in devices if d != target_device]]
+    return pd.DataFrame(aggregated_data, columns=feature_columns), pd.Series(target_data, name=target_device)
+
+def train_and_evaluate(target_device,data):
+    X, y = create_aggregated_features_training(data, sensors, devices, target_device)
+    train_data, test_data, train_targets, test_targets = train_test_split(X, y, test_size=0.2)
+
+    clf = DecisionTreeClassifier()
+    clf.fit(train_data, train_targets)
+
+    y_pred = clf.predict(test_data)
+    accuracy = accuracy_score(test_targets, y_pred)
+    #cr = classification_report(test_targets, y_pred)
+    confusion_matrix = metrics.confusion_matrix(test_targets, y_pred)
+    print(f'Accuracy for predicting {target_device}: {accuracy:.2f}')
+    print(confusion_matrix)
+    return clf
+
+models = {}
+data_weekend = data[data['weekday'] == 0]
+data_weekday = data[data['weekday'] == 1]
+
+data_weekend = shuffle(data_weekend,random_state=42)
+del data_weekend['weekday']
+data_weekday = shuffle(data_weekday,random_state=42)
+del data_weekday['weekday']
+
+print("WEEKDAY")
+print(len(data_weekday))
+for device in devices:
+    models[device] = train_and_evaluate(device,data_weekday)
+    joblib.dump(models[device], 'model_'+device+'.pkl')
+print("WEEKEND")
+print(len(data_weekend))
+for device in devices:
+    models[device] = train_and_evaluate(device,data_weekend)
+    joblib.dump(models[device], 'model_'+device+'_weekend.pkl')"""

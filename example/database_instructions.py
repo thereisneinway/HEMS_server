@@ -249,6 +249,20 @@ def query_energy(MySQL_connection_details: dict, period: str, current_timestamp:
                 value[start_time.strftime('%Y-%m-%d')] = 0
             end_time = start_time
             start_time = start_time - timedelta(weeks=1)
+    elif period == 'thisdaylstweek':
+        start_time = current_timestamp - timedelta(days=current_timestamp.weekday() )
+        end_time = current_timestamp - timedelta(days=current_timestamp.weekday() + 1)
+        query = f"""
+                            SELECT SUM(energy)
+                            FROM {energy_table_name}
+                            WHERE timestamp BETWEEN %s AND %s
+                            """
+        cursor.execute(query, (start_time, end_time))
+        result = cursor.fetchone()[0]
+        if result:
+            value[start_time.strftime('%Y-%m-%d')] = int(result)
+        else:
+            value[start_time.strftime('%Y-%m-%d')] = 0
     else:
         raise ValueError("Invalid period. Choose 'hour', 'day', or 'week'.")
 
